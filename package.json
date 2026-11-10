@@ -1,7 +1,7 @@
 {
   "name": "antbench-web",
   "private": true,
-  "version": "0.6.2",
+  "version": "0.6.3",
   "type": "module",
   "scripts": {
     "assets": "mkdir -p public/litert public/models/tongue public/ort && cp node_modules/@litertjs/core/wasm/* public/litert/ && cp node_modules/@desert-ant-labs/tongue/dist/tongue_int8.bin node_modules/@desert-ant-labs/tongue/dist/tongue_meta.json public/models/tongue/ && cp node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded*.wasm node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded*.mjs public/ort/",
