@@ -11,7 +11,10 @@
 //    als "net" (echt netwerk) of "cache". Ook verzoeken vanuit web workers lopen
 //    hierlangs — vollediger dan Resource Timing in de pagina.
 const CACHE = "antbench-modellen-v1";
-const MODEL_HOST = /(^|\.)huggingface\.co$|(^|\.)hf\.co$/;
+// Modelbestanden: Hugging Face (Desert Ant, Opus-MT, WebLLM-gewichten, Piper-stemmen),
+// GitHub raw (WebLLM-runtimebibliotheken) en de twee CDN's waar piper-tts-web zijn
+// wasm vandaan haalt. Alles cache-first; de pagina ziet elk verzoek in de teller.
+const MODEL_HOST = /(^|\.)huggingface\.co$|(^|\.)hf\.co$|^raw\.githubusercontent\.com$|^cdn\.jsdelivr\.net$|^cdnjs\.cloudflare\.com$/;
 
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (e) => e.waitUntil(self.clients.claim()));
@@ -29,7 +32,7 @@ self.addEventListener("fetch", (e) => {
   }
   const u = new URL(req.url);
   const cacheable = !req.headers.has("range") && (MODEL_HOST.test(u.hostname)
-    || (u.origin === self.location.origin && /\/(assets|litert|ort|models)\//.test(u.pathname)));
+    || (u.origin === self.location.origin && /\/(assets|litert|ort|ort-tf|tess|piper|models)\//.test(u.pathname)));
   // App-schil (index.html, manifest, iconen): network-first, zodat een nieuwe versie
   // meteen doorkomt, met de cache als vangnet voor offline herladen.
   if (!cacheable && u.origin === self.location.origin) {

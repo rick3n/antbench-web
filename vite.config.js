@@ -14,7 +14,7 @@ export default defineConfig({
   define: { __APP_VERSION__: JSON.stringify(pkg.version) },
   build: {
     outDir: "dist", emptyOutDir: true, target: "es2022",
-    // Twee pagina's: de app zelf en de menukaart (werkbank/) met de klussen.
-    rollupOptions: { input: { main: "index.html", werkbank: "werkbank/index.html" } },
+    // Drie pagina's: de app zelf, de menukaart (werkbank/) en de ketting (ketting/).
+    rollupOptions: { input: { main: "index.html", werkbank: "werkbank/index.html", ketting: "ketting/index.html" } },
   },
 });

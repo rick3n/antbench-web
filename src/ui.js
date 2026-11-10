@@ -7,16 +7,16 @@ export const $ = (id) => document.getElementById(id);
 const status = $("status"), progress = $("progress"), result = $("result"), actions = $("resultActions");
 let busy = false, lastText = "", lastBlob = null, lastName = "";
 
-export function setStatus(t) { status.textContent = t; }
-export function setProgress(f) { progress.value = f; }
+export function setStatus(t) { if (status) status.textContent = t; }
+export function setProgress(f) { if (progress) progress.value = f; }
 export function isBusy() { return busy; }
 
 export function setBusy(b) {
   busy = b;
   for (const el of document.querySelectorAll("button.run, #rec, #verg-rec")) el.disabled = b;
   const vg = document.getElementById("verg-go"); if (vg && !b) vg.disabled = !document.getElementById("verg-audio")?.src;
-  progress.classList.toggle("on", b);
-  if (!b) progress.value = 0;
+  progress?.classList.toggle("on", b);
+  if (!b && progress) progress.value = 0;
 }
 
 /** Toon een resultaat. `text` is wat gekopieerd/gedeeld wordt; `node` (optioneel) de weergave. */
@@ -102,20 +102,20 @@ async function cacheInfo() {
     el.textContent = `Modelcache: ${n} bestanden, ${est ? `${(est.usage / 1e6).toFixed(0)} MB in gebruik van ${(est.quota / 1e9).toFixed(1)} GB` : "omvang onbekend"}${persisted ? " · beschermd tegen opruimen" : ""}`;
   } catch { el.textContent = "Modelcache: niet beschikbaar in deze browser."; }
 }
-$("cache-persist").onclick = async () => { const ok = await navigator.storage?.persist?.(); setStatus(ok ? "Opslag beschermd: de browser ruimt de modelcache niet vanzelf op." : "Browser weigert bescherming (installeer de app of gebruik hem vaker)."); cacheInfo(); };
-$("cache-clear").onclick = async () => { await caches.delete("antbench-modellen-v1"); setStatus("Modelcache gewist."); cacheInfo(); };
+if ($("cache-persist")) $("cache-persist").onclick = async () => { const ok = await navigator.storage?.persist?.(); setStatus(ok ? "Opslag beschermd: de browser ruimt de modelcache niet vanzelf op." : "Browser weigert bescherming (installeer de app of gebruik hem vaker)."); cacheInfo(); };
+if ($("cache-clear")) $("cache-clear").onclick = async () => { await caches.delete("antbench-modellen-v1"); setStatus("Modelcache gewist."); cacheInfo(); };
 cacheInfo(); navigator.serviceWorker?.ready.then(cacheInfo);
 // Stap 1 overleeft herladen (modelcache!), dus onthouden in localStorage.
 const lsGet = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
 const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
 const netEl = $("net"), vt = { loaded: lsGet("antbench.vt.loaded") === "1", offline: false };
-if (vt.loaded) $("vt-1").classList.add("done");
-function showOnline() { const on = navigator.onLine; netEl.textContent = on ? "● online" : "✈ offline"; netEl.classList.toggle("off", !on); if (!on && vt.loaded) { vt.offline = true; $("vt-2").classList.add("done"); } }
+if (vt.loaded) $("vt-1")?.classList.add("done");
+function showOnline() { const on = navigator.onLine; if (netEl) { netEl.textContent = on ? "● online" : "✈ offline"; netEl.classList.toggle("off", !on); } if (!on && vt.loaded) { vt.offline = true; $("vt-2")?.classList.add("done"); } }
 window.addEventListener("online", showOnline); window.addEventListener("offline", showOnline); showOnline();
 function vliegtuigtest(label, net, ok) {
   if (!ok) return;
-  if (navigator.onLine) { vt.loaded = true; lsSet("antbench.vt.loaded", "1"); $("vt-1").classList.add("done"); }
-  else if (vt.loaded && net.total === 0) { $("vt-3").classList.add("done"); const v = $("vt-verdict"); v.className = "small ok"; v.textContent = `✔ Bewezen: "${label}" verwerkt zonder netwerk, offline, ${new Date().toLocaleTimeString("nl-NL")}.${net.failed ? ` De SDK probeerde wel ${net.failedHosts} te bereiken; vliegtuigmodus hield dat tegen.` : ""}`; $("vliegtuig").open = true; }
+  if (navigator.onLine) { vt.loaded = true; lsSet("antbench.vt.loaded", "1"); $("vt-1")?.classList.add("done"); }
+  else if (vt.loaded && net.total === 0 && $("vt-verdict")) { $("vt-3").classList.add("done"); const v = $("vt-verdict"); v.className = "small ok"; v.textContent = `✔ Bewezen: "${label}" verwerkt zonder netwerk, offline, ${new Date().toLocaleTimeString("nl-NL")}.${net.failed ? ` De SDK probeerde wel ${net.failedHosts} te bereiken; vliegtuigmodus hield dat tegen.` : ""}`; $("vliegtuig").open = true; }
 }
 
 /** Voer een model-actie uit met status, timing en netwerkteller. */
@@ -142,8 +142,8 @@ export const loadOptions = () => ({
   onProgress: (f) => setProgress(f),
 });
 
-$("copy").onclick = async () => { await navigator.clipboard.writeText(lastText); setStatus("Resultaat gekopieerd."); };
-$("share").onclick = async () => {
+if ($("copy")) $("copy").onclick = async () => { await navigator.clipboard.writeText(lastText); setStatus("Resultaat gekopieerd."); };
+if ($("share")) $("share").onclick = async () => {
   const files = lastBlob && navigator.canShare?.({ files: [new File([lastBlob], lastName)] })
     ? [new File([lastBlob], lastName, { type: lastBlob.type })] : undefined;
   if (navigator.share) await navigator.share(files ? { files } : { text: lastText }).catch(() => {});

@@ -3,3 +3,6 @@ dist/
 public/litert/
 public/models/
 public/ort/
+public/tess/
+public/ort-tf/
+public/piper/

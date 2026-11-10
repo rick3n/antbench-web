@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#1f2a44">
+  <title>Ketting</title>
+  <link rel="icon" href="../icon-192.png">
+</head>
+<body>
+  <h1>Ketting</h1>
+  <p class="sub">Rijg kralen tot een klus. Elke kraal geeft zijn resultaat door aan de volgende. Alles op dit toestel, niets gaat naar een server. <span id="net" class="net">● online</span></p>
+  <p class="sub"><a href="../werkbank/">De twaalf klussen</a> · <a href="../">AntBench (losse modellen)</a></p>
+
+  <div id="verhalen" title="Kant-en-klare kettingen: klik en de kralen liggen klaar"></div>
+
+  <div class="werkplaats">
+    <aside>
+      <h2 style="font-size:1rem;margin:.2rem 0 .5rem">Voorraad <small class="small">sleep of tik</small></h2>
+      <div id="voorraad"></div>
+    </aside>
+
+    <div class="rechts">
+      <section>
+        <h2>Ketting <small id="aantal"></small></h2>
+        <div id="ketting"></div>
+        <p id="leeg">Sleep kralen uit de voorraad hierheen, of kies een verhaal hierboven.</p>
+        <div class="row"><button id="wis">Leeg</button><button id="deel">Deel deze ketting</button></div>
+      </section>
+
+      <section>
+        <h2>Invoer <small id="invoer-hint"></small></h2>
+        <div class="row">
+          <button id="pick">Bestand…</button>
+          <input id="file" type="file" accept="audio/*,video/*,image/*,.txt,.md,.html,.docx">
+          <button id="rec">● Opnemen</button>
+          <button id="cam">Foto</button>
+          <input id="camfile" type="file" accept="image/*" capture="environment">
+          <span id="invoer-info" class="small"></span>
+        </div>
+        <textarea id="tekst" placeholder="…of typ of plak hier tekst"></textarea>
+        <audio id="preview-audio" controls style="display:none"></audio>
+        <img id="preview-beeld" alt="" style="display:none">
+        <div class="row">
+          <button id="go" class="primary" disabled>Rijg en ga</button>
+          <label class="small">Taalmodel <select id="llm"><option value="klein">klein</option><option value="normaal">normaal</option></select></label>
+          <span id="llm-info" class="small"></span>
+        </div>
+        <progress id="progress" max="1" value="0"></progress>
+        <div id="status">Kies een verhaal of sleep kralen; elk model laadt bij eerste gebruik en blijft daarna in de modelcache.</div>
+      </section>
+
+      <section>
+        <h2>Uitkomst <small>klik op een kraal voor zijn deel</small></h2>
+        <div id="uitkomst" class="small">Nog niets gerijgd.</div>
+        <div class="row" id="acties" style="display:none"><button id="download">Download alles (ZIP)</button></div>
+      </section>
+    </div>
+  </div>
+
+  <footer>
+    <p><span id="rt"></span></p>
+    <p>Kralen van <a href="https://desertant.com">Desert Ant Labs</a> (Voz, Who, Ear, Clear, Eye, Moderator, Tongue, Gist, Redact) en open modellen: <a href="https://github.com/naptha/tesseract.js">Tesseract</a> (OCR), <a href="https://huggingface.co/Xenova/opus-mt-nl-en">Opus-MT</a> via Transformers.js (vertalen), <a href="https://github.com/mlc-ai/web-llm">Qwen3 via WebLLM</a> (schrijven), <a href="https://github.com/rhasspy/piper">Piper</a> (voorlezen). De kralen <em>willen/mogen/kunnen</em>, <em>checklist</em> en <em>zoeken met bronvermelding</em> zijn naar ideeën van Michiel Buisman (AI Usecase Explorer, AIbaarAI). Broncode: <a href="https://github.com/rick3n/antbench-web">github.com/rick3n/antbench-web</a>. Deze demo-site is tijdelijk, tot 1 december 2026.</p>
+  </footer>
+
+  <script type="module" src="/src/ketting/main.js"></script>
+</body>
+</html>
