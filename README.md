@@ -1,32 +1,9 @@
-# AntBench (web)
+# antbench-web
 
-Referentie-webapp met alle browser-modellen van [Desert Ant Labs](https://desertant.com)
-(SDK 4.3.0, npm `@desert-ant-labs/*`). De modellen draaien **in de browser**
-(WebAssembly + LiteRT.js; Voz op ONNX Runtime Web), dus ook op iPhone en iPad;
-de server levert alleen statische bestanden en ziet geen invoer. Demo:
-https://dev.3n.nl/antbench/
-
-Gemaakt door [3n.nl](https://3n.nl) als proef bij de kennismaking met Desert Ant
-Labs; de volledige ontwikkeling gebeurde met Claude.
-
-## Snel starten
-
-    npm ci
-    npm run dev          # http://localhost:5173/antbench/
-    npm run build        # → dist/ (statisch, ~140 MB door de wasm-runtimes)
-
-`npm run assets` (onderdeel van `dev` en `build`) kopieert de LiteRT- en
-ONNX-runtimes en het Tongue-model uit `node_modules` naar `public/`. De overige
-modellen haalt de SDK bij eerste gebruik SHA-256-geverifieerd van Hugging Face;
-de service worker (`public/sw.js`) zet ze in Cache Storage, zodat herladen en
-vliegtuigmodus daarna zonder netwerk werken.
-
-Hosting: elke statische webserver. `vite.config.js` heeft `base: "/antbench/"`;
-pas dat aan als de app op een andere plek komt. Geef `index.html` en `sw.js`
-`Cache-Control: no-cache` en `assets/`, `litert/`, `ort/`, `models/` een lange
-cache (bestandsnamen zijn gehasht of versiegebonden).
-
-## Wat erin zit
+Webversie van AntBench: de on-device modellen van Desert Ant Labs draaien in
+de browser (WebAssembly + LiteRT.js; Voz op ONNX Runtime Web), dus ook op
+iPhone en iPad. Niets verlaat het toestel; de server levert alleen statische
+bestanden. Te gebruiken op https://dev.3n.nl/antbench/.
 
 | Tabblad | Modellen | Invoer |
 |---|---|---|
@@ -34,7 +11,7 @@ cache (bestandsnamen zijn gehasht of versiegebonden).
 | Audio | Voz (transcriptie), Who (sprekers), Ear (gesproken taal), Clear (opschonen) | microfoon, audio-/videobestand |
 | Beeld | Eye (analyse), Moderator (NSFW) | camera, foto |
 | Tekenen | Shapes (vormherkenning) | één haal op het canvas |
-| Vergadering | Voz → Who → Ear/Tongue/Gist/Redact als keten (Clear optioneel vooraf) | één opname → notulen (.md/.srt), geredigeerde versie, optioneel schone .wav |
+| Vergadering | Clear → Voz → Who → Ear/Tongue/Gist/Redact als keten | één opname → notulen (.md/.srt), schone .wav, geredigeerde versie |
 | Project | alle bovenstaande, batch | veel bestanden tegelijk (of een map op desktop) |
 
 ## Project: batchverwerking met terugschrijven
@@ -54,43 +31,21 @@ Redact + Gist + Tongue). Het resultaat komt als `<project>__antbench.zip`:
 - `rapport.md` en `resultaten.json`
 
 
-## Vliegtuigtest en netwerkbewijs
+Elk model laadt pas bij de eerste klik (de wasm-cores zijn ~50 MB per model,
+de gewichten komen SHA-256-geverifieerd van Hugging Face) en zit daarna in de
+browsercache. Voz is traag zonder WebGPU; Chrome op Android en Safari 26+ hebben het.
 
-Onderaan de pagina staat een indicator `● online` / `✈ offline` en na elke
-actie meldt de status hoeveel netwerkverzoeken er tijdens het verwerken zijn
-gedaan, naar welke hosts, en hoeveel bestanden uit de modelcache kwamen. De
-service worker ziet elk verzoek, ook vanuit workers. Model online gebruiken →
-vliegtuigmodus aan → zelfde model opnieuw geeft `0 netwerkverzoeken` en een
-"Bewezen"-stempel.
+Bouwen gebeurt door Nix (`default.nix`, buildNpmPackage); lokaal ontwikkelen:
 
-## Goed om te weten over de SDK
-
-- Bij elke modellading doet de SDK één verzoek naar `https://events.desertant.com/api/v1`
-  (het adres staat in de wasm-kern; de code noemt het telemetrie/licentie).
-  Offline mislukt dat verzoek en werkt het model gewoon door. De netwerkteller
-  laat het zien.
-- De browser-SDK bewaart modellen zelf alleen in het paginageheugen; de
-  modelcache in `sw.js` is een toevoeging van deze app.
-- Clear mastert naar −16 LUFS maar met `maxGainDB` standaard 9 dB; deze app
-  geeft 40 mee. `measuredLUFS` is de loudness van de ínvoer; `src/loudness.js`
-  meet de uitvoer (BS.1770).
-- Clear vóór Voz maakt een transcript slechter, niet beter; in de
-  Vergadering-keten staat Clear daarom standaard uit.
-- Moderator geeft als `score` de hoogste regio-score en vlagt bij ≥ `threshold`
-  (0,5); een huidrijke close-up van een gezicht komt daar al snel overheen.
-- Voz is traag zonder WebGPU; Chrome op Android en Safari 26+ hebben het.
-  Op een Galaxy S25 Ultra: 15× realtime.
-
-## Licentie
-
-De code van AntBench is beschikbaar onder de MIT-licentie (`LICENSE`). De
-Desert Ant SDK en de modellen vallen onder de voorwaarden van Desert Ant Labs;
-die accepteer je zelf bij `npm ci`.
+    npm ci
+    npm run dev          # of: npm run build  → dist/
 
 ## Versie
 
-De versie staat in `package.json` en komt via `__APP_VERSION__` in de
-voettekst, in `rapport.md`, `resultaten.json` en de notulen.
+De versie staat in `package.json` (en gelijk in `default.nix`) en komt via
+`__APP_VERSION__` in de voettekst, in `rapport.md`, `resultaten.json` en de
+notulen. Bump hem in elke PR die de app verandert; zo is bij een melding van
+een gebruiker direct te zien welke versie die draaide.
 
 | Versie | Wat |
 |---|---|
@@ -108,3 +63,7 @@ voettekst, in `rapport.md`, `resultaten.json` en de notulen.
 | 0.6.1 | Modelcache in de service worker: modellen overleven herladen en vliegtuigmodus; netwerkteller via de service worker; knoppen voor opslag beschermen en cache wissen |
 | 0.6.2 | Vergadering: Clear standaard uit — Voz transcribeert het origineel aantoonbaar beter |
 | 0.6.3 | Link naar het GitHub-repo en melding dat de demo-site tijdelijk is (tot 1 december 2026) |
+| 0.7.0 | Menukaart `werkbank/`: twaalf klussen van de ambtenaar met per klus een knop naar de demo |
+
+Verandert `package-lock.json`, zet dan `npmDepsHash` in `default.nix` opnieuw
+(`nix run nixpkgs#prefetch-npm-deps -- package-lock.json`).

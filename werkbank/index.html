@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#1f2a44">
+  <title>Kleine modellen, grote klussen</title>
+  <link rel="icon" href="../icon-192.png">
+  <style>
+    :root { color-scheme: light dark; --accent: #1f2a44; --line: #8884; --nu: #2a7; --deels: #c90; --komt: #888; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; line-height: 1.5;
+           max-width: 64rem; margin-inline: auto; padding: 1rem 1rem 3rem; }
+    h1 { margin: .5rem 0 0; font-size: 1.7rem; }
+    .sub { margin: 0 0 1rem; opacity: .75; }
+    .lead { border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: .6rem; padding: .7rem .9rem; margin: 0 0 1.2rem; }
+    .lead p { margin: .2rem 0; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr)); gap: .9rem; }
+    article { border: 1px solid var(--line); border-radius: .8rem; padding: .9rem 1rem; display: flex; flex-direction: column; gap: .4rem; }
+    article h2 { margin: 0; font-size: 1.05rem; display: flex; align-items: baseline; gap: .5rem; }
+    .nr { display: inline-grid; place-items: center; width: 1.6rem; height: 1.6rem; border-radius: 50%; background: var(--accent); color: #fff; font-size: .85rem; flex: none; }
+    .chip { font-size: .72rem; padding: .1rem .5rem; border-radius: 1rem; color: #fff; align-self: flex-start; }
+    .chip.nu { background: var(--nu); } .chip.deels { background: var(--deels); } .chip.komt { background: var(--komt); }
+    dl { margin: 0; font-size: .88rem; display: grid; grid-template-columns: 6.2rem 1fr; gap: .15rem .5rem; }
+    dt { opacity: .65; } dd { margin: 0; }
+    .waarde { font-size: .88rem; border-top: 1px dashed var(--line); padding-top: .4rem; margin-top: .2rem; }
+    .acts { margin-top: auto; display: flex; flex-wrap: wrap; gap: .4rem; padding-top: .4rem; }
+    a.btn { text-decoration: none; font-size: .9rem; padding: .45rem .85rem; border-radius: .5rem; border: 1px solid #8886; color: inherit; }
+    a.btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+    a.btn.komt { opacity: .5; pointer-events: none; }
+    footer { margin-top: 1.6rem; font-size: .85rem; opacity: .75; }
+    footer a { color: inherit; }
+    .samen { margin-top: 1.6rem; border: 1px solid var(--line); border-radius: .8rem; padding: .9rem 1rem; }
+    .samen h2 { margin: 0 0 .4rem; font-size: 1.1rem; }
+    .samen ul { margin: .3rem 0 0; padding-left: 1.2rem; font-size: .92rem; }
+    .samen li { margin: .2rem 0; }
+  </style>
+</head>
+<body>
+  <h1>Kleine modellen, grote klussen</h1>
+  <p class="sub">Twaalf klussen van de ambtenaar waar een klein AI-model op je eigen telefoon of laptop vandaag al bij helpt — zonder dat er iets naar een server gaat.</p>
+
+  <div class="lead">
+    <p><strong>Waarom op het toestel?</strong> Elk AI-hulpmiddel dat je nu hebt stopt bij dezelfde deur: vertrouwelijk, persoonsgegevens, opnames. Publieke chatbots lekken, Copilot staat op oranje, en zelfs Vlam mag geen vertrouwelijke informatie verwerken. Achter die deur zit het saaiste en duurste werk: notuleren, lakken, beoordelen, rapporteren.</p>
+    <p>Een model dat op het toestel blijft heeft daar geen toestemming voor nodig. Bewijs: zet vliegtuigmodus aan en kijk onderaan <a href="../">AntBench</a> — <em>0 netwerkverzoeken</em>.</p>
+  </div>
+
+  <div class="grid">
+
+    <article>
+      <h2><span class="nr">1</span> Overleg → notulen</h2>
+      <span class="chip nu">Nu te proberen</span>
+      <dl>
+        <dt>Voor wie</dt><dd>Iedereen die vergadert — 40 tot 60 % van de werktijd.</dd>
+        <dt>Wat gebeurt er</dt><dd>Opname → transcript met sprekers, onderwerpen en persoonsgegevens bovenaan, als notulen (.md) en ondertitels.</dd>
+        <dt>Op het toestel</dt><dd>Vertrouwelijke overleggen die niet in Teams opgenomen mogen worden.</dd>
+      </dl>
+      <p class="waarde">Eén uur administratie minder per vergaderuur (Britse gemeenten, tool <em>Minute</em>). Bijna de helft noemt notuleren de rotklus.</p>
+      <div class="acts"><a class="btn primary" href="../#vergadering">Probeer: Vergadering</a></div>
+    </article>
+
+    <article>
+      <h2><span class="nr">2</span> Woo: inventariseren en lakken</h2>
+      <span class="chip deels">Deels</span>
+      <dl>
+        <dt>Voor wie</dt><dd>Woo-teams, juristen, informatiebeheer.</dd>
+        <dt>Wat gebeurt er</dt><dd>Persoonsgegevens en namen worden gemarkeerd vóór het lakken; passages vinden in het eigen dossier met bronvermelding per zin.</dd>
+        <dt>Op het toestel</dt><dd>Stukken met gegevens van derden; nu €25 mln laksoftware én handwerk.</dd>
+      </dl>
+      <p class="waarde">134 uur per verzoek bij ministeries; beoordelen en lakken is de grootste stap. Elk procent sneller ≈ 10 fte overheidsbreed.</p>
+      <div class="acts"><a class="btn primary" href="../#tekst">Probeer: Redact</a><a class="btn" href="https://okeribok.github.io/FormIt/">Passages zoeken (AIbaarAI)</a></div>
+    </article>
+
+    <article>
+      <h2><span class="nr">3</span> Inspraak en zienswijzen</h2>
+      <span class="chip deels">Deels</span>
+      <dl>
+        <dt>Voor wie</dt><dd>Omgevingsrecht, participatie, beleid.</dd>
+        <dt>Wat gebeurt er</dt><dd>Honderden reacties krijgen een onderwerp; groeperen op thema met een citaat per thema.</dd>
+        <dt>Op het toestel</dt><dd>Reacties bevatten namen en adressen van burgers.</dd>
+      </dl>
+      <p class="waarde">Britse tool <em>Consult</em>: 50.000 reacties in twee uur, 83 % overeenstemming met experts (experts onderling: 55 %).</p>
+      <div class="acts"><a class="btn primary" href="../#project">Probeer: Project (onderwerpen)</a></div>
+    </article>
+
+    <article>
+      <h2><span class="nr">4</span> Bezwaar- en klachtentriage</h2>
+      <span class="chip deels">Deels</span>
+      <dl>
+        <dt>Voor wie</dt><dd>Juridische zaken, klantcontact.</dd>
+        <dt>Wat gebeurt er</dt><dd>Onderwerp, taal en toon van een inkomend stuk; voorsorteren op behandelaar.</dd>
+        <dt>Op het toestel</dt><dd>Elk stuk is het dossier van een burger.</dd>
+      </dl>
+      <p class="waarde">Eerste reactie binnen een dag; verdeling zonder dat iemand alles eerst leest.</p>
+      <div class="acts"><a class="btn primary" href="../#tekst">Probeer: Onderwerpen en taal</a></div>
+    </article>
+
+    <article>
+      <h2><span class="nr">5</span> Inspectie in het veld</h2>
+      <span class="chip deels">Deels</span>
+      <dl>
+        <dt>Voor wie</dt><dd>Toezichthouders, bouwinspecteurs, vastgoedbeheer.</dd>
+        <dt>Wat gebeurt er</dt><dd>Foto's krijgen trefwoorden in de metadata en komen met een rapport terug als ZIP; gezichten en kentekens wegredigeren komt.</dd>
+        <dt>Op het toestel</dt><dd>Geen bereik in kelders en op bouwplaatsen; foto's van panden en mensen.</dd>
+      </dl>
+      <p class="waarde">Tot 50 % minder administratie (leveranciersclaim); het verslag is klaar bij vertrek.</p>
+      <div class="acts"><a class="btn primary" href="../#project">Probeer: Project (foto's)</a></div>
+    </article>
+
+    <article>
+      <h2><span class="nr">6</span> Hoorzitting, interview, intake</h2>
+      <span class="chip nu">Nu te proberen</span>
+      <dl>
+        <dt>Voor wie</dt><dd>FG, integriteit, HR, bezwaarcommissies.</dd>
+        <dt>Wat gebeurt er</dt><dd>Transcript met sprekers én een geredigeerde versie voor het dossier, in één keer.</dd>
+        <dt>Op het toestel</dt><dd>Het gevoeligste materiaal dat de overheid heeft.</dd>
+      </dl>
+      <p class="waarde">Uren uittypen per gesprek vervallen; geen transcriptiebureau meer.</p>
+      <div class="acts"><a class="btn primary" href="../#vergadering">Probeer: Vergadering</a></div>
+    </article>
+
+    <article>
+      <h2><span class="nr">7</span> AI-idee in 20 minuten getoetst</h2>
+      <span class="chip nu">Nu te proberen</span>
+      <dl>
+        <dt>Voor wie</dt><dd>Projectleiders, CIO-office, FG.</dd>
+        <dt>Wat gebeurt er</dt><dd>Je vertelt wat je wilt; aan het eind weet je wat je wilt, mag en kunt, waar de gaten zitten en welke normen geraakt worden.</dd>
+        <dt>Op het toestel</dt><dd>Ideeën bevatten vaak precies de gevoelige data waar het om gaat.</dd>
+      </dl>
+      <p class="waarde">Weken wachten op een adviseur wordt een half uur voorbereiding — en een beter gesprek daarna.</p>
+      <div class="acts"><a class="btn primary" href="https://okeribok.github.io/aiue/">Probeer: AI Usecase Explorer</a></div>
+    </article>
+
+    <article>
+      <h2><span class="nr">8</span> Memo klaar voor verzending?</h2>
+      <span class="chip nu">Nu te proberen</span>
+      <dl>
+        <dt>Voor wie</dt><dd>Beleidsmedewerkers, adviseurs.</dd>
+        <dt>Wat gebeurt er</dt><dd>Het stuk gaat langs de checklist van het team: structuur, besluittekst, jargon, leesniveau. Per punt sterren en een concrete verbetering.</dd>
+        <dt>Op het toestel</dt><dd>Conceptstukken onder bestuurlijke vertrouwelijkheid.</dd>
+      </dl>
+      <p class="waarde">Minder retourrondes. 85 % controleert AI-tekst toch — hier is het nakijken precies wat het model doet.</p>
+      <div class="acts"><a class="btn primary" href="https://okeribok.github.io/FormIt/">Probeer: AIbaarAI</a></div>
+    </article>
+
+    <article>
+      <h2><span class="nr">9</span> Archiveren met metadata</h2>
+      <span class="chip deels">Deels</span>
+      <dl>
+        <dt>Voor wie</dt><dd>Informatiebeheer, en iedereen die opslaat.</dd>
+        <dt>Wat gebeurt er</dt><dd>Bij het opslaan: onderwerp, taal, aanwezige persoonsgegevens en een voorstel voor classificatie.</dd>
+        <dt>Op het toestel</dt><dd>Metadata over vertrouwelijke stukken is zelf vertrouwelijk.</dd>
+      </dl>
+      <p class="waarde">Vindbaarheid voor de Woo: dossiervorming kost nu 27 dagen per verzoek bij ministeries.</p>
+      <div class="acts"><a class="btn primary" href="../#project">Probeer: Project (rapport.md)</a></div>
+    </article>
+
+    <article>
+      <h2><span class="nr">10</span> Toegankelijkheid</h2>
+      <span class="chip deels">Deels</span>
+      <dl>
+        <dt>Voor wie</dt><dd>Communicatie, webredactie.</dd>
+        <dt>Wat gebeurt er</dt><dd>Beschrijving en trefwoorden bij een afbeelding, als basis voor de alt-tekst; leesbaarheidscheck van tekst.</dd>
+        <dt>Op het toestel</dt><dd>Interne beelden en concepten.</dd>
+      </dl>
+      <p class="waarde">51 % van de overheidssites voldoet niet aan de wet; dit is het goedkoopste deel om te fixen.</p>
+      <div class="acts"><a class="btn primary" href="../#beeld">Probeer: Beeld</a></div>
+    </article>
+
+    <article>
+      <h2><span class="nr">11</span> Anderstalige post en balie</h2>
+      <span class="chip nu">Nu te proberen</span>
+      <dl>
+        <dt>Voor wie</dt><dd>Klantcontact, sociaal domein.</dd>
+        <dt>Wat gebeurt er</dt><dd>Taal herkennen uit een paar woorden of een paar seconden spraak; doorzetten naar de juiste collega.</dd>
+        <dt>Op het toestel</dt><dd>Brieven en gesprekken van burgers.</dd>
+      </dl>
+      <p class="waarde">Minder doorverwijzen; snellere eerste reactie.</p>
+      <div class="acts"><a class="btn primary" href="../#tekst">Probeer: Taal (tekst)</a><a class="btn" href="../#audio">Taal (spraak)</a></div>
+    </article>
+
+    <article>
+      <h2><span class="nr">12</span> Agent op zak</h2>
+      <span class="chip komt">Komt</span>
+      <dl>
+        <dt>Voor wie</dt><dd>Iedereen, later.</dd>
+        <dt>Wat gebeurt er</dt><dd>Eén opdracht in gewone taal — "maak van deze foto's een inspectieverslag" — koppelt de klussen hierboven aan elkaar.</dd>
+        <dt>Op het toestel</dt><dd>Alle redenen hierboven tegelijk.</dd>
+      </dl>
+      <p class="waarde">De kers op de taart; pas als 1 tot en met 11 vanzelf spreken.</p>
+      <div class="acts"><a class="btn komt" href="#">Komt</a></div>
+    </article>
+
+  </div>
+
+  <section class="samen">
+    <h2>Samenwerken zonder cloud</h2>
+    <p class="sub" style="margin:0">Eén regel: <strong>het resultaat reist, de brongegevens niet.</strong></p>
+    <ul>
+      <li><strong>Het stuk reist.</strong> De app levert een bestand (notulen, rapport, geredigeerde tekst); dat deel je via de gewone weg. Opname en foto's blijven op het toestel.</li>
+      <li><strong>Vier ogen.</strong> Een collega haalt jouw concept langs dezelfde checklist en krijgt dezelfde sterren; het verschil is het gesprek.</li>
+      <li><strong>De workshop.</strong> Eén scherm, de groep eromheen; de app houdt bij wat besproken is en wat nog niet.</li>
+      <li><strong>Overdracht.</strong> Notulen worden actiepunten per spreker; ieder krijgt zijn lijstje via Delen.</li>
+      <li><strong>Teamgeheugen.</strong> Een gedeelde map met besluiten en verslagen die iedereen lokaal doorzoekt, met bronvermelding per zin.</li>
+      <li><strong>Eén kader.</strong> Vragenlijst, checklist en sjablonen in versiebeheer; verschillen in uitkomst zijn dan inhoudelijk.</li>
+    </ul>
+  </section>
+
+  <footer>
+    <p>Bouwstenen: <a href="../">AntBench</a> (Desert Ant Labs, <a href="https://github.com/rick3n/antbench-web">broncode</a>) en de apps van Michiel Buisman: <a href="https://okeribok.github.io/aiue/">AI Usecase Explorer</a> en <a href="https://okeribok.github.io/FormIt/">AIbaarAI</a>. Cijfers: <a href="https://nationaltechnology.co.uk/UK_Government_Trials_AI_Tool_In_25_Local_Councils.php">Minute</a>, <a href="https://www.civilserviceworld.com/professions/article/dsit-says-ai-tool-could-free-up-75000-civil-servant-days-a-year">Consult</a>, <a href="https://ibestuur.nl/overheid-in-transitie/informatiehuishouding/onderzoek-kosten-woo-heeft-verrassende-uitkomsten">Sira/Woo</a>, <a href="https://www.bi.team/blogs/how-uk-public-servants-are-using-ai-at-work/">BIT</a>, <a href="https://www.computable.nl/2026/06/10/vlam-in-de-ai-pan-bij-rijksambtenaren/">Vlam</a>. Deze demo-site is tijdelijk, tot 1 december 2026.</p>
+  </footer>
+</body>
+</html>
