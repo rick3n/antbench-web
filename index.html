@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#1f2a44">
+  <title>AntBench</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <link rel="stylesheet" href="/src/style.css">
+</head>
+<body>
+  <header>
+    <h1>AntBench</h1>
+    <p class="sub">Desert Ant Labs on-device modellen · in de browser, niets verlaat dit toestel <span id="net" class="net">● online</span></p>
+    <nav id="tabs">
+      <button data-tab="tekst" class="on">Tekst</button>
+      <button data-tab="audio">Audio</button>
+      <button data-tab="beeld">Beeld</button>
+      <button data-tab="tekenen">Tekenen</button>
+      <button data-tab="project">Project</button>
+      <button data-tab="vergadering">Vergadering</button>
+    </nav>
+  </header>
+
+  <!-- ===================== Tekst ===================== -->
+  <section id="tab-tekst" class="tab on">
+    <textarea id="text-input" placeholder="Typ, plak of open een bestand…"></textarea>
+    <div class="row">
+      <button id="text-pick">Bestand…</button>
+      <input id="text-file" type="file" accept=".txt,.md,.html,.htm,.docx,text/*,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
+      <button id="text-clear">Wis</button>
+    </div>
+    <div class="row">
+      <button class="primary run" data-model="redact">Redact</button>
+      <button class="primary run" data-model="tongue">Taal</button>
+      <button class="primary run" data-model="emo">Emoji</button>
+      <button class="primary run" data-model="gist">Onderwerpen</button>
+    </div>
+    <p class="small">Redact: PII maskeren · Tongue: taal uit een paar woorden · Emo: emoji-suggesties · Gist: onderwerpen (36 topics)</p>
+  </section>
+
+  <!-- ===================== Audio ===================== -->
+  <section id="tab-audio" class="tab">
+    <div class="row">
+      <button id="rec" class="primary">● Opnemen</button>
+      <button id="audio-pick">Bestand…</button>
+      <input id="audio-file" type="file" accept="audio/*,video/*">
+      <span id="audio-info" class="small"></span>
+    </div>
+    <audio id="audio-in" controls style="display:none"></audio>
+    <div class="row">
+      <button class="primary run" data-model="voz">Transcriptie</button>
+      <button class="primary run" data-model="who">Wie sprak</button>
+      <button class="primary run" data-model="ear">Gesproken taal</button>
+      <button class="primary run" data-model="clear">Opschonen</button>
+    </div>
+    <audio id="audio-out" controls style="display:none"></audio>
+    <p class="small">Voz: spraak-naar-tekst (25 talen) · Who: sprekers · Ear: taal uit ~30 s · Clear: ruis/galm weg, 48 kHz. Alles op dit toestel.</p>
+  </section>
+
+  <!-- ===================== Beeld ===================== -->
+  <section id="tab-beeld" class="tab">
+    <div class="row">
+      <button id="cam">Camera</button>
+      <button id="image-pick">Foto…</button>
+      <input id="image-file" type="file" accept="image/*">
+      <span id="image-info" class="small"></span>
+    </div>
+    <canvas id="image-canvas" class="preview"></canvas>
+    <div class="row">
+      <button class="primary run" data-model="eye">Analyseer</button>
+      <button class="primary run" data-model="moderator">Moderatie</button>
+    </div>
+    <div class="row small">
+      <label>NSFW-drempel <select id="mod-threshold">
+        <option value="0.5">0,5 (SDK-standaard)</option>
+        <option value="0.7">0,7</option>
+        <option value="0.85">0,85</option>
+        <option value="0.95">0,95</option>
+      </select></label>
+      <label><input id="mod-topless" type="checkbox"> bloot bovenlijf toestaan</label>
+    </div>
+    <p class="small">Eye: scènes, kwaliteit, gezichten, mensen, dieren · Moderator: NSFW-score = hoogste regio-score; vlag bij ≥ drempel. De foto blijft op dit toestel.</p>
+  </section>
+
+  <!-- ===================== Tekenen ===================== -->
+  <section id="tab-tekenen" class="tab">
+    <p class="small">Teken één vorm in één haal (cirkel, pijl, ster, hart…). Shapes maakt er een nette vorm van.</p>
+    <canvas id="draw-canvas" class="preview draw"></canvas>
+    <div class="row">
+      <button id="draw-clear">Wis</button>
+    </div>
+  </section>
+
+  <!-- ===================== Project ===================== -->
+  <section id="tab-project" class="tab">
+    <p class="small">Veel bestanden in één keer. Noem ze <code>&lt;project&gt;__&lt;naam&gt;.ext</code> — alles met hetzelfde voorvoegsel hoort bij elkaar. Resultaat komt als ZIP terug: foto's met trefwoorden in de metadata, transcripten, geredigeerde tekst, rapport.</p>
+    <div class="row">
+      <button id="project-pick" class="primary">Bestanden…</button>
+      <input id="project-files" type="file" multiple>
+      <button id="project-dir" style="display:none">Map…</button>
+    </div>
+    <p id="project-empty" class="small">Nog geen bestanden. Selecteer er een paar uit je downloadmap (of sleep ze hierheen).</p>
+    <div id="project-list"></div>
+  </section>
+
+  <!-- ===================== Vergadering ===================== -->
+  <section id="tab-vergadering" class="tab">
+    <p class="small">Eén opname van een vergadering → notulen in één handeling: Voz transcribeert, Who onderscheidt de sprekers, en Ear, Tongue, Gist en Redact zetten de eigenschappen van de tekst bovenaan. Clear kan vooraf, maar in de praktijk haalt de ruisonderdrukking spraakdetail weg dat Voz nodig heeft. Alles op dit toestel.</p>
+    <div class="row">
+      <button id="verg-rec" class="primary">● Opnemen</button>
+      <button id="verg-pick">Bestand…</button>
+      <input id="verg-file" type="file" accept="audio/*,video/*">
+      <span id="verg-info" class="small"></span>
+    </div>
+    <audio id="verg-audio" controls style="display:none"></audio>
+    <div class="row">
+      <button id="verg-go" class="primary run" disabled>Maak notulen</button>
+      <label class="small"><input id="verg-clear" type="checkbox"> Clear vooraf (opschonen + niveau) — standaard uit: Voz transcribeert het origineel beter</label>
+    </div>
+    <p class="small">Resultaat: notulen (.md), ondertitels (.srt) en een geredigeerde versie als ZIP via Download; de opgeschoonde audio (.wav, 16 kHz) als aparte knop.</p>
+  </section>
+
+  <!-- ===================== Gedeeld ===================== -->
+  <progress id="progress" max="1" value="0"></progress>
+  <div id="status">Klaar. Elk model laadt bij eerste gebruik; daarna werkt het offline.</div>
+  <div id="result"></div>
+  <div class="row" id="resultActions" style="display:none">
+    <button id="copy">Kopieer</button>
+    <button id="share">Deel</button>
+    <a id="download" style="display:none"><button>Download</button></a>
+  </div>
+  <details id="vliegtuig">
+    <summary>✈ Vliegtuigtest — bewijs dat het lokaal draait</summary>
+    <p class="small">Een webpagina kan vliegtuigmodus niet zelf aanzetten, maar wel laten zien dat ze offline is én dat er tijdens het verwerken geen enkel netwerkverzoek is gedaan. Eenmaal gebruikte modellen staan in de modelcache van de browser en blijven ook na herladen beschikbaar.</p>
+    <p class="small" id="cache-info">Modelcache: …</p>
+    <div class="row">
+      <button id="cache-persist">Opslag beschermen</button>
+      <button id="cache-clear">Wis modelcache</button>
+    </div>
+    <ol class="small" id="vt-steps">
+      <li id="vt-1">Gebruik een model terwijl je online bent (het model wordt gedownload en in de modelcache gezet).</li>
+      <li id="vt-2">Zet vliegtuigmodus aan — de indicator bovenaan springt naar <b>✈ offline</b>.</li>
+      <li id="vt-3">Gebruik hetzelfde model opnieuw. De status meldt dan <b>0 netwerkverzoeken</b>.</li>
+    </ol>
+    <p id="vt-verdict" class="small"></p>
+  </details>
+  <p class="small"><span id="rt"></span> · Desert Ant SDK 4.3.0 · LiteRT.js / ONNX Runtime Web</p>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

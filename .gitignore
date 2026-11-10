@@ -1,0 +1,5 @@
+node_modules/
+dist/
+public/litert/
+public/models/
+public/ort/

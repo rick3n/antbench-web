@@ -1,0 +1,30 @@
+{
+  "name": "antbench-web",
+  "private": true,
+  "version": "0.6.2",
+  "type": "module",
+  "scripts": {
+    "assets": "mkdir -p public/litert public/models/tongue public/ort && cp node_modules/@litertjs/core/wasm/* public/litert/ && cp node_modules/@desert-ant-labs/tongue/dist/tongue_int8.bin node_modules/@desert-ant-labs/tongue/dist/tongue_meta.json public/models/tongue/ && cp node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded*.wasm node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded*.mjs public/ort/",
+    "build": "npm run assets && vite build",
+    "dev": "npm run assets && vite"
+  },
+  "dependencies": {
+    "@desert-ant-labs/clear": "^4.3.0",
+    "@desert-ant-labs/ear": "^4.3.0",
+    "@desert-ant-labs/emo": "^4.3.0",
+    "@desert-ant-labs/eye": "^4.3.0",
+    "@desert-ant-labs/gist": "^4.3.0",
+    "@desert-ant-labs/moderator": "^4.3.0",
+    "@desert-ant-labs/redact": "4.3.0",
+    "@desert-ant-labs/shapes": "^4.3.0",
+    "@desert-ant-labs/tongue": "4.3.0",
+    "@desert-ant-labs/voz": "^4.3.0",
+    "@desert-ant-labs/who": "^4.3.0",
+    "@litertjs/core": "2.6.0",
+    "jszip": "^3.10.1",
+    "onnxruntime-web": "^1.31.1"
+  },
+  "devDependencies": {
+    "vite": "^6.0.0"
+  }
+}
