@@ -53,7 +53,12 @@
       <section>
         <h2>Uitkomst <small>klik op een kraal voor zijn deel</small></h2>
         <div id="uitkomst" class="small">Nog niets gerijgd.</div>
-        <div class="row" id="acties" style="display:none"><button id="download">Download alles (ZIP)</button></div>
+        <div class="row" id="acties" style="display:none">
+          <label class="small">Opslaan als <select id="fmt"><option value="docx">Word (.docx)</option><option value="pdf">PDF</option><option value="md">Markdown (.md)</option></select></label>
+          <button id="bewaar-kraal">Deze kraal</button>
+          <button id="bewaar-verslag">Hele verslag</button>
+          <button id="download">Alles als ZIP</button>
+        </div>
       </section>
     </div>
   </div>

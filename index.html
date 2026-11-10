@@ -120,6 +120,11 @@
       <button id="verg-go" class="primary run" disabled>Maak notulen</button>
       <label class="small"><input id="verg-clear" type="checkbox"> Clear vooraf (opschonen + niveau) — standaard uit: Voz transcribeert het origineel beter</label>
     </div>
+    <div class="row" id="verg-export" style="display:none">
+      <label class="small">Notulen opslaan als <select id="verg-fmt"><option value="docx">Word (.docx)</option><option value="pdf">PDF</option><option value="md">Markdown (.md)</option></select></label>
+      <button id="verg-bewaar">Opslaan</button>
+      <label class="small"><input id="verg-geredigeerd" type="checkbox"> geredigeerde versie</label>
+    </div>
     <p class="small">Resultaat: notulen (.md), ondertitels (.srt) en een geredigeerde versie als ZIP via Download; de opgeschoonde audio (.wav, 16 kHz) als aparte knop.</p>
   </section>
 

@@ -5,6 +5,7 @@ import JSZip from "jszip";
 import { $, BASE, VERSION, setStatus, setProgress, netSummary } from "../ui.js";
 import { MODULES, GROEPEN, RECEPTEN, SLEUTELS, byId, startpakket, llmInstelling, LLM_KEUZE } from "./modules.js";
 import { fmt } from "../engine.js";
+import { bewaar } from "../export.js";
 
 const ICOON = { lezen: "📄", luisteren: "🎙️", kijken: "📷", begrijpen: "🔍", schrijven: "✍️", vertalen: "🌐", spreken: "🔊", samen: "🤝" };
 const kleur = Object.fromEntries(GROEPEN.map(([id, , c]) => [id, c]));
@@ -187,7 +188,7 @@ function md(t) {
   return esc(t).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/\[([A-Z_]+_\d+)\]/g, "<mark>[$1]</mark>").replace(/\n/g, "<br>");
 }
 function toonUitkomst(i) {
-  const u = uitkomsten[i]; if (!u) return;
+  const u = uitkomsten[i]; if (!u) return; gekozenKraal = i;
   const m = byId[u.id], d = u.pakket, box = $("uitkomst"); box.replaceChildren();
   document.querySelectorAll(".bead").forEach((b, j) => b.classList.toggle("gekozen", j === i));
   const h = document.createElement("h3"); h.textContent = `${ICOON[m.groep]} ${m.naam} — ${u.samenvatting}${u.ms ? ` · ${(u.ms / 1000).toFixed(1)} s` : ""}`; box.append(h);
@@ -207,19 +208,37 @@ function toonUitkomst(i) {
   $("acties").style.display = "";
 }
 
-$("download").onclick = async () => {
-  const zip = new JSZip(), basis = (invoer.file?.name ?? "tekst").replace(/\.[^.]+$/, "");
+const basisnaam = () => (invoer.file?.name ?? "tekst").replace(/\.[^.]+$/, "");
+/** Verslag van de hele ketting als lichte markdown; vult optioneel een ZIP met de losse delen. */
+function verslagMd(zip = null, kort = false) {
+  const basis = basisnaam();
   const verslag = [`# Ketting — ${basis}`, "", `${new Date().toLocaleString("nl-NL")} · ${VERSION} · alles op dit toestel`, "", `Kralen: ${ketting.map((k) => byId[k].naam).join(" → ")}`, ""];
   uitkomsten.forEach((u, i) => {
     if (!u) return; const m = byId[u.id], d = u.pakket, nr = String(i + 1).padStart(2, "0");
     verslag.push(`## ${nr} ${m.naam} — ${u.samenvatting}`, "");
-    if (d.tekst != null && m.out.includes("tekst")) { zip.file(`${nr}-${m.id}.md`, d.tekst); verslag.push(d.tekst.slice(0, 1500) + (d.tekst.length > 1500 ? "…" : ""), ""); }
-    if (d.beoordeling) { zip.file(`${nr}-${m.id}.md`, d.beoordeling); verslag.push(d.beoordeling, ""); }
-    if (d.spraak) zip.file(`${nr}-${m.id}.wav`, d.spraak);
+    if (d.tekst != null && m.out.includes("tekst")) { zip?.file(`${nr}-${m.id}.md`, d.tekst); verslag.push(kort && d.tekst.length > 1500 ? d.tekst.slice(0, 1500) + "…" : d.tekst, ""); }
+    if (d.beoordeling) { zip?.file(`${nr}-${m.id}.md`, d.beoordeling); verslag.push(d.beoordeling, ""); }
+    if (d.pgg?.length) verslag.push("| Persoonsgegeven | Vervangen door |", "|---|---|", ...d.pgg.map((x) => `| ${x.label} | ${x.placeholder ?? ""} |`), "");
+    if (d.onderwerpen?.length) verslag.push("| Onderwerp | Score |", "|---|---|", ...d.onderwerpen.map((t) => `| ${t.name} | ${Math.round(t.score * 100)} % |`), "");
+    if (d.taal) verslag.push(`Taal: ${d.taal}`, "");
+    if (d.spraak) zip?.file(`${nr}-${m.id}.wav`, d.spraak);
     const rest = Object.fromEntries(Object.entries(d).filter(([k]) => !["tekst", "spraak", "audio", "origineel", "beoordeling"].includes(k)));
-    if (Object.keys(rest).length) zip.file(`${nr}-${m.id}.json`, JSON.stringify(rest, null, 2));
+    if (zip && Object.keys(rest).length) zip.file(`${nr}-${m.id}.json`, JSON.stringify(rest, null, 2));
   });
-  zip.file("verslag.md", verslag.join("\n"));
+  return verslag.join("\n");
+}
+let gekozenKraal = null;
+$("bewaar-kraal").onclick = () => {
+  const i = gekozenKraal ?? uitkomsten.map((u, j) => (u?.ok ? j : -1)).filter((j) => j >= 0).pop(); const u = uitkomsten[i]; if (!u) return;
+  const m = byId[u.id], d = u.pakket, tekst = d.beoordeling ?? d.tekst ?? "";
+  const md = [`# ${m.naam} — ${basisnaam()}`, "", `${new Date().toLocaleString("nl-NL")} · ${u.samenvatting} · ${VERSION}`, "", tekst].join("\n");
+  bewaar($("fmt").value, md, `${basisnaam()}__${m.id}`).catch((e) => setStatus(`Opslaan mislukt: ${e.message}`));
+};
+$("bewaar-verslag").onclick = () => bewaar($("fmt").value, verslagMd(), `${basisnaam()}__ketting`).catch((e) => setStatus(`Opslaan mislukt: ${e.message}`));
+
+$("download").onclick = async () => {
+  const zip = new JSZip(), basis = basisnaam();
+  zip.file("verslag.md", verslagMd(zip, true));
   const blob = await zip.generateAsync({ type: "blob" }), a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `${basis}__ketting.zip`; a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 60_000);
 };

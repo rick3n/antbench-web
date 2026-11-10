@@ -6,6 +6,7 @@ import JSZip from "jszip";
 import { $, run, setStatus, setProgress, showResult, table, VERSION } from "./ui.js";
 import { model, decodeAudio, downsample, toWav, fmt } from "./engine.js";
 import { integratedLufs } from "./loudness.js";
+import { bewaar } from "./export.js";
 
 let file = null, recorder = null, chunks = [];
 
@@ -187,4 +188,11 @@ $("verg-go").onclick = () => run("Vergadering → notulen", async () => {
   if (r.mdRedacted) zip.file(`${base}__notulen-geredigeerd.md`, r.mdRedacted);
   const blob = await zip.generateAsync({ type: "blob" });
   showResult(r.mdText, node, blob, `${base}__notulen.zip`);
+  laatste = { r, base }; $("verg-export").style.display = ""; $("verg-geredigeerd").disabled = !r.mdRedacted;
 });
+let laatste = null;
+$("verg-bewaar").onclick = () => {
+  if (!laatste) return;
+  const ger = $("verg-geredigeerd").checked && laatste.r.mdRedacted;
+  bewaar($("verg-fmt").value, ger ? laatste.r.mdRedacted : laatste.r.mdText, `${laatste.base}__notulen${ger ? "-geredigeerd" : ""}`).catch((e) => setStatus(`Opslaan mislukt: ${e.message}`));
+};
