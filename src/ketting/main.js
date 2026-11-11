@@ -3,8 +3,8 @@
 import "./style.css";
 import JSZip from "jszip";
 import { $, BASE, VERSION, setStatus, setProgress, netSummary } from "../ui.js";
-import { MODULES, GROEPEN, RECEPTEN, SLEUTELS, byId, startpakket, llmInstelling, LLM_KEUZE } from "./modules.js";
-import { fmt } from "../engine.js";
+import { MODULES, GROEPEN, RECEPTEN, SLEUTELS, byId, startpakket, llmInstelling, kiesLlm, LLM_KEUZE } from "./modules.js";
+import { fmt, grootte } from "../engine.js";
 import { bewaar } from "../export.js";
 
 const ICOON = { lezen: "📄", luisteren: "🎙️", kijken: "📷", begrijpen: "🔍", schrijven: "✍️", vertalen: "🌐", spreken: "🔊", samen: "🤝" };
@@ -108,7 +108,7 @@ function laadHash() {
 // --- Invoer ----------------------------------------------------------------------------
 function zetBestand(f, label) {
   invoer.file = f; invoer.tekst = ""; $("tekst").value = "";
-  $("invoer-info").textContent = `${label} · ${(f.size / 1e6).toFixed(1)} MB · ${SLEUTELS[soort(f)]}`;
+  $("invoer-info").textContent = `${label} · ${grootte(f.size)} · ${SLEUTELS[soort(f)]}`;
   const a = $("preview-audio"), img = $("preview-beeld"); a.style.display = img.style.display = "none";
   if (soort(f) === "audio") { a.src = URL.createObjectURL(f); a.style.display = ""; }
   if (soort(f) === "beeld") { img.src = URL.createObjectURL(f); img.style.display = ""; }
@@ -136,7 +136,7 @@ window.addEventListener("drop", (e) => { if (lane.contains(e.target)) return; e.
 // --- Draaien ---------------------------------------------------------------------------
 function samenvatting(m, d, pakket) {
   if (d.tekst != null && m.out.includes("tekst")) return `${d.tekst.split(/\s+/).filter(Boolean).length} woorden`;
-  if (d.spraak) return `${(d.spraak.size / 1e6).toFixed(1)} MB spraak`;
+  if (d.spraak) return `${grootte(d.spraak.size)} spraak`;
   if (d.sprekers) return `${d.sprekerAantal} sprekers`;
   if (d.taal) return `taal: ${d.taal}`;
   if (d.onderwerpen) return d.onderwerpen.slice(0, 2).map((t) => t.name).join(", ");
@@ -246,8 +246,8 @@ $("deel").onclick = async () => { const url = location.href; if (navigator.share
 $("wis").onclick = () => { ketting = []; uitkomsten = []; $("uitkomst").replaceChildren(); $("acties").style.display = "none"; tekenKetting(); bewaarHash(); };
 
 // --- Instellingen --------------------------------------------------------------------------
-$("llm").value = llmInstelling.maat; $("llm").onchange = (e) => { llmInstelling.maat = e.target.value; };
-$("llm-info").textContent = `(${Object.entries(LLM_KEUZE).map(([k, v]) => `${k}: ${v.replace("-q4f16_1-MLC", "")}`).join(", ")}; ${navigator.gpu ? "WebGPU beschikbaar" : "geen WebGPU: taalmodel werkt hier niet"})`;
+$("llm").value = llmInstelling.maat; $("llm").onchange = (e) => kiesLlm(e.target.value); llmInstelling.luister = (m) => { $("llm").value = m; };
+$("llm-info").textContent = `(${Object.entries(LLM_KEUZE).map(([k, v]) => `${k}: ${v.replace("-q4f16_1-MLC", "")}`).join(", ")}; ${navigator.gpu ? "WebGPU beschikbaar; op een telefoon is klein de veilige keuze" : "geen WebGPU: taalmodel werkt hier niet"})`;
 
 // --- Start ------------------------------------------------------------------------------------
 $("rt").textContent = `${VERSION} · ${navigator.gpu ? "WebGPU beschikbaar" : "WASM (CPU)"}`;

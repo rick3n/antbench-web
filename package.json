@@ -1,7 +1,7 @@
 {
   "name": "antbench-web",
   "private": true,
-  "version": "0.8.1",
+  "version": "0.8.2",
   "type": "module",
   "scripts": {
     "assets": "mkdir -p public/litert public/models/tongue public/ort && cp node_modules/@litertjs/core/wasm/* public/litert/ && cp node_modules/@desert-ant-labs/tongue/dist/tongue_int8.bin node_modules/@desert-ant-labs/tongue/dist/tongue_meta.json public/models/tongue/ && cp node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded*.wasm node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded*.mjs public/ort/ && mkdir -p public/tess/lang public/ort-tf && cp node_modules/tesseract.js/dist/worker.min.js public/tess/ && cp node_modules/tesseract.js-core/tesseract-core*.js node_modules/tesseract.js-core/tesseract-core*.wasm public/tess/ && cp node_modules/@tesseract.js-data/nld/4.0.0_best_int/nld.traineddata.gz public/tess/lang/ && cp node_modules/@huggingface/transformers/node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded*.wasm node_modules/@huggingface/transformers/node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded*.mjs public/ort-tf/ && mkdir -p public/piper && cp node_modules/@diffusionstudio/piper-wasm/build/piper_phonemize.data node_modules/@diffusionstudio/piper-wasm/build/piper_phonemize.wasm public/piper/",

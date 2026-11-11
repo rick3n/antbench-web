@@ -37,9 +37,16 @@ function sprekerTekst(words, turns) {
 
 // --- Taalmodel (WebLLM) -----------------------------------------------------------
 // Qwen3 via WebLLM, vereist WebGPU. Klein (0.6B) op telefoons, 1.7B op laptops.
+// navigator.deviceMemory is in Chrome afgekapt op 8, dus een telefoon met 12 GB meldt óók 8:
+// daarom telt "mobiel" zwaarder dan het geheugen. De keuze wordt per toestel onthouden.
 let llm = null, llmId = null;
 export const LLM_KEUZE = { klein: "Qwen3-0.6B-q4f16_1-MLC", normaal: "Qwen3-1.7B-q4f16_1-MLC" };
-export const llmInstelling = { maat: (navigator.deviceMemory ?? 4) >= 8 ? "normaal" : "klein" };
+const MOBIEL = navigator.userAgentData?.mobile ?? /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent);
+const onthouden = (() => { try { return localStorage.getItem("antbench.llm"); } catch { return null; } })();
+export const llmInstelling = { maat: LLM_KEUZE[onthouden] ? onthouden : (!MOBIEL && (navigator.deviceMemory ?? 4) >= 8 ? "normaal" : "klein"), luister: null };
+export function kiesLlm(maat) { llmInstelling.maat = maat; try { localStorage.setItem("antbench.llm", maat); } catch {} llmInstelling.luister?.(maat); }
+// Zo klinkt het als de GPU het model kwijtraakt (telefoons onder geheugendruk, tabblad op de achtergrond).
+const GPU_WEG = /mapAsync|unmapped|device.*lost|lost.*device|GPUDevice|out of memory|OutOfMemory/i;
 async function taalmodel() {
   if (!navigator.gpu) throw new Error("Het taalmodel heeft WebGPU nodig (Chrome op Android/desktop, Safari 26+).");
   const id = LLM_KEUZE[llmInstelling.maat];
@@ -48,16 +55,37 @@ async function taalmodel() {
   const { CreateMLCEngine } = await import("@mlc-ai/web-llm");
   if (llm) { await llm.unload(); llm = null; }
   try { llm = await CreateMLCEngine(id, { initProgressCallback: (p) => { setProgress(p.progress ?? 0); setStatus(p.text); } }); }
-  catch (e) { throw new Error(/GPU/i.test(e.message) ? "Geen bruikbare WebGPU in deze browser; het taalmodel werkt op Chrome (Android/desktop) en Safari 26+." : e.message); }
+  catch (e) {
+    if (GPU_WEG.test(String(e?.message ?? e))) {
+      // Past al bij het laden niet in het grafisch geheugen.
+      if (llmInstelling.maat !== "klein") { kiesLlm("klein"); setStatus("Het normale taalmodel past niet in het grafisch geheugen van dit toestel; overgeschakeld naar klein (Qwen3-0.6B)…"); return taalmodel(); }
+      throw new Error("Het taalmodel past niet in het grafisch geheugen van dit toestel. Sluit andere tabbladen en apps, of probeer het op een laptop.");
+    }
+    throw new Error(/GPU/i.test(e.message) ? "Geen bruikbare WebGPU in deze browser; het taalmodel werkt op Chrome (Android/desktop) en Safari 26+." : e.message);
+  }
   llmId = id; return llm;
 }
-async function vraag(systeem, gebruiker, maxTokens = 700) {
+async function vraag(systeem, gebruiker, maxTokens = 700, poging = 0) {
   const e = await taalmodel();
-  const r = await e.chat.completions.create({
-    messages: [{ role: "system", content: systeem }, { role: "user", content: gebruiker }],
-    temperature: 0.2, max_tokens: maxTokens, extra_body: { enable_thinking: false },
-  });
-  return (r.choices[0].message.content ?? "").replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+  try {
+    const r = await e.chat.completions.create({
+      messages: [{ role: "system", content: systeem }, { role: "user", content: gebruiker }],
+      temperature: 0.2, max_tokens: maxTokens, extra_body: { enable_thinking: false },
+    });
+    return (r.choices[0].message.content ?? "").replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+  } catch (err) {
+    if (!GPU_WEG.test(String(err?.message ?? err))) throw err;
+    // De GPU heeft het model laten vallen: het geladen model is onbruikbaar. Lossen en opnieuw.
+    try { await e.unload(); } catch { /* al weg */ }
+    llm = null; llmId = null;
+    if (llmInstelling.maat !== "klein") {
+      kiesLlm("klein");
+      setStatus("De GPU van dit toestel liet het normale taalmodel vallen; overgeschakeld naar klein (Qwen3-0.6B)…");
+      return vraag(systeem, gebruiker, maxTokens, poging + 1);
+    }
+    if (poging === 0) { setStatus("De GPU liet het taalmodel vallen; opnieuw laden…"); return vraag(systeem, gebruiker, maxTokens, 1); }
+    throw new Error("De GPU van dit toestel laat het taalmodel steeds vallen (te weinig grafisch geheugen). Sluit andere tabbladen en apps, of probeer het op een laptop.");
+  }
 }
 const NL = "Je bent een nauwkeurige assistent van een Nederlandse overheidsorganisatie. Antwoord in het Nederlands. Verzin niets dat niet in de tekst staat.";
 

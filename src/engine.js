@@ -113,6 +113,8 @@ export function toWav(f32, rate) {
 }
 
 export function fmt(s) { return `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`; }
+/** Bestandsgrootte leesbaar: 38 kB, 2,4 MB. */
+export function grootte(b) { return b < 1e6 ? `${Math.max(1, Math.round(b / 1e3))} kB` : `${(b / 1e6).toFixed(1).replace(".", ",")} MB`; }
 
 // --- Beeld ----------------------------------------------------------------------
 
