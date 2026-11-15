@@ -11,7 +11,7 @@ const ICOON = { lezen: "📄", luisteren: "🎙️", kijken: "📷", begrijpen: 
 const kleur = Object.fromEntries(GROEPEN.map(([id, , c]) => [id, c]));
 
 let ketting = [];            // module-ids in volgorde
-let invoer = { file: null, tekst: "" };
+let invoer = { file: null, tekst: "", vraag: "" };
 let uitkomsten = [];         // per kraal: { id, ok, samenvatting, pakket (kopie van de toegevoegde velden), ms }
 let bezig = false, recorder = null, chunks = [];
 
@@ -68,6 +68,7 @@ function tekenKetting() {
     lane.append(b);
   });
   const eind = document.createElement("div"); eind.className = "eindkraal"; eind.innerHTML = `<span class="bol">🎁</span><span class="naam">uitkomst</span>`; lane.append(eind);
+  $("vraag").style.display = ketting.some((id) => byId[id].vraag) ? "" : "none";
   $("go").disabled = !ketting.length || !start.size || bezig;
   $("leeg").style.display = ketting.length ? "none" : "";
   $("aantal").textContent = ketting.length ? `${ketting.length} ${ketting.length === 1 ? "kraal" : "kralen"}` : "";
@@ -114,6 +115,7 @@ function zetBestand(f, label) {
   if (soort(f) === "beeld") { img.src = URL.createObjectURL(f); img.style.display = ""; }
   uitkomsten = []; tekenKetting();
 }
+$("vraag").oninput = () => { invoer.vraag = $("vraag").value; };
 $("pick").onclick = () => $("file").click();
 $("file").onchange = (e) => { const f = e.target.files?.[0]; if (f) zetBestand(f, f.name); e.target.value = ""; };
 $("tekst").oninput = () => { invoer.tekst = $("tekst").value; if (invoer.tekst.trim()) { invoer.file = null; $("invoer-info").textContent = `${invoer.tekst.trim().split(/\s+/).length} woorden getypt`; $("preview-audio").style.display = $("preview-beeld").style.display = "none"; } uitkomsten = []; tekenKetting(); };
@@ -136,6 +138,7 @@ window.addEventListener("drop", (e) => { if (lane.contains(e.target)) return; e.
 // --- Draaien ---------------------------------------------------------------------------
 const telWoorden = (t) => (t ?? "").split(/\s+/).filter(Boolean).length;
 function samenvatting(m, d, pakket) {
+  if (d.passages) return `${d.passages.length} passages gevonden`;
   if (d.overgeslagen) return `overgeslagen: ${d.overgeslagen}`;
   if (d.tekst != null && m.out.includes("tekst")) return `${d.tekst.split(/\s+/).filter(Boolean).length} woorden`;
   if (d.spraak) return `${grootte(d.spraak.size)} spraak`;
@@ -249,7 +252,8 @@ function kaart(i) {
   if (d.tags) voeg("Trefwoorden", tabel([["", d.tags.join(", ")]]));
   if (d.sprekers) voeg("Sprekers", tabel([["Aantal", d.sprekerAantal], ["Beurten", d.sprekers.length]]));
   if (d.nsfw != null) voeg("Geschikt om te delen?", tabel([["Oordeel", d.nsfw ? "liever niet" : "ja"], ["Score", `${Math.round(d.nsfwScore * 100)} %`]]));
-  if (d.tekst != null && m.out.includes("tekst")) tekstblok(d.tekst, `${m.id === "redact" ? "Gemaskeerde tekst" : "Nieuwe tekst"}${d.delen > 1 ? ` · gemaakt in ${d.delen} delen` : ""}`);
+  if (d.passages) { voeg(`Gevonden passages, beste eerst · ${d.zoekmodel}`, tabel(d.passages.map((x, j) => [`[${j + 1}] passage ${x.nr} van ${x.van} · ${Math.round(x.score * 100)} %`, open ? x.tekst : x.tekst.slice(0, 160).replace(/\s+\S*$/, "") + (x.tekst.length > 160 ? "…" : "")]))); }
+  else if (d.tekst != null && m.out.includes("tekst")) tekstblok(d.tekst, `${m.id === "redact" ? "Gemaskeerde tekst" : "Nieuwe tekst"}${d.delen > 1 ? ` · gemaakt in ${d.delen} delen` : ""}`);
   if (d.spraak) { u.spraakUrl ??= URL.createObjectURL(d.spraak); const a = document.createElement("audio"); a.controls = true; a.src = u.spraakUrl; voeg("Spraak", a); }
   if (open && d.origineel) { const det = document.createElement("details"); det.innerHTML = `<summary>Wat deze kraal binnenkreeg</summary>`; const p = document.createElement("div"); p.className = "tekstblok"; p.innerHTML = md(d.origineel); det.append(p); voeg("", det); }
   if (u.door) { const p = document.createElement("div"); p.className = "door" + (u.nieuw ? " nieuw" : ""); p.textContent = `Geeft door: ${u.door}${u.labels?.length ? ` · labels: ${u.labels.join(", ")}` : ""}`; k.append(p); }
@@ -275,6 +279,7 @@ function verslagMd(zip = null, kort = false) {
     if (d.tekst != null && m.out.includes("tekst")) { zip?.file(`${nr}-${m.id}.md`, d.tekst); verslag.push(kort && d.tekst.length > 1500 ? d.tekst.slice(0, 1500) + "…" : d.tekst, ""); }
     if (d.beoordeling) { zip?.file(`${nr}-${m.id}.md`, d.beoordeling); verslag.push(d.beoordeling, ""); }
     if (d.pgg?.length) verslag.push("| Persoonsgegeven | Vervangen door |", "|---|---|", ...d.pgg.map((x) => `| ${x.label} | ${x.placeholder ?? ""} |`), "");
+    if (d.passages?.length) verslag.push(`Vraag: ${eindpakket?.vraag ?? invoer.vraag}`, "");
     if (d.onderwerpen?.length) verslag.push("| Onderwerp | Score |", "|---|---|", ...d.onderwerpen.map((t) => `| ${t.name} | ${Math.round(t.score * 100)} % |`), "");
     if (d.taal) verslag.push(`Taal: ${d.taal}`, "");
     if (d.spraak) zip?.file(`${nr}-${m.id}.wav`, d.spraak);

@@ -162,6 +162,61 @@ async function vertaal(tekst, paar) {
   return uit.join("\n");
 }
 
+// --- Zoeken op betekenis (EmbeddingGemma 2, alleen het tekstdeel) ------------------
+// Google EmbeddingGemma 2 (Apache 2.0) via Transformers.js; q4 is ongeveer 175 MB.
+// Vraag en passages worden vectoren; het inproduct is de gelijkenis. Geen taalmodel nodig.
+// Zonder WebGPU valt de kraal terug op multilingual-e5-small (MIT, ±120 MB): de gekwantiseerde
+// EmbeddingGemma-bestanden gebruiken een bewerking die de wasm-runtime niet kent.
+let zoeker = null;
+const zoekCache = { sleutel: null, d: null };
+const ZOEKMODEL = {
+  gemma: { id: "onnx-community/embeddinggemma-2-ONNX", naam: "EmbeddingGemma 2", device: "webgpu", dtype: "q4", vraag: (v) => `task: question answering | query: ${v}`, passage: (t) => `title: none | text: ${t}` },
+  e5: { id: "Xenova/multilingual-e5-small", naam: "multilingual-e5-small", device: "wasm", dtype: "q8", vraag: (v) => `query: ${v}`, passage: (t) => `passage: ${t}` },
+};
+async function zoekmodel() {
+  if (zoeker) return zoeker;
+  const tf = await import("@huggingface/transformers");
+  tf.env.allowLocalModels = false;
+  tf.env.backends.onnx.wasm.wasmPaths = `${BASE}ort-tf/`;
+  const laad = async (k) => { setStatus(`Zoekmodel laden (${k.naam}, alleen de eerste keer)…`); return { ...k, run: await tf.pipeline("feature-extraction", k.id, { device: k.device, dtype: k.dtype, progress_callback: (p) => { if (p.progress) setProgress(p.progress / 100); } }) }; };
+  // navigator.gpu bestaat ook op toestellen zonder bruikbare GPU: eerst echt een adapter vragen.
+  const gpu = !!(await navigator.gpu?.requestAdapter().catch(() => null));
+  if (gpu) { try { return (zoeker = await laad(ZOEKMODEL.gemma)); } catch (e) { console.warn("EmbeddingGemma op WebGPU mislukt, verder met e5 op de processor", e); } }
+  return (zoeker = await laad(ZOEKMODEL.e5));
+}
+async function vectoren(m, teksten, per = 6) {
+  const uit = [];
+  for (let i = 0; i < teksten.length; i += per) {
+    setProgress(i / teksten.length);
+    uit.push(...(await m.run(teksten.slice(i, i + per), { pooling: "mean", normalize: true })).tolist());
+  }
+  return uit;
+}
+/** Eén passage per alinea: lange alinea's in stukken van ±500 tekens, losse kopjes bij de alinea eronder. */
+export function passagesVan(tekst, max = 500) {
+  const uit = []; let kop = "";
+  for (const a of tekst.trim().split(/\n\s*\n|\n(?=\*\*Spreker)/).map((x) => x.trim()).filter(Boolean)) {
+    if (a.length < 80 && !/[.!?]$/.test(a)) { kop = kop ? `${kop} — ${a}` : a; continue; }
+    const delen = stukken(a, max); delen[0] = kop ? `${kop}\n${delen[0]}` : delen[0]; kop = ""; uit.push(...delen);
+  }
+  if (kop) uit.push(kop);
+  return uit;
+}
+/** De passages die het best bij de vraag passen, met hun plek in het document. */
+async function zoek(tekst, vraag, top = 4) {
+  const passages = passagesVan(tekst);
+  if (!passages.length) throw new Error("er is geen tekst om in te zoeken");
+  const m = await zoekmodel();
+  setStatus(`Zoeken in ${passages.length} passages…`);
+  // De vectoren van het document blijven bewaard: een tweede vraag aan hetzelfde stuk kost alleen de vraag.
+  const sleutel = `${m.id}|${tekst.length}|${tekst.slice(0, 200)}|${tekst.slice(-200)}`;
+  if (zoekCache.sleutel !== sleutel) { zoekCache.sleutel = sleutel; zoekCache.d = await vectoren(m, passages.map(m.passage)); }
+  const d = zoekCache.d, [q] = await vectoren(m, [m.vraag(vraag)]);
+  return { model: m.naam, passages: d.map((v, i) => ({ nr: i + 1, van: passages.length, score: v.reduce((som, x, j) => som + x * q[j], 0), tekst: passages[i] }))
+    .sort((a, b) => b.score - a.score).slice(0, top) };
+}
+const VRAAG_MIST = "typ eerst een vraag in het veld Vraag bij de invoer";
+
 // --- OCR (Tesseract.js, Nederlands) -----------------------------------------------
 let ocrWorker = null;
 async function ocr(blob) {
@@ -256,8 +311,12 @@ export const MODULES = [
   // Samen
   { id: "vragenlijst", groep: "samen", naam: "Willen / mogen / kunnen", lev: "idee Michiel Buisman (AIUE)", in: ["tekst"], out: ["tekst"], komt: true,
     uitleg: "Een AI-idee langs de vragenlijst: wat willen we, mag het, kunnen we het. Komt." },
-  { id: "zoeken", groep: "samen", naam: "Zoeken met bronvermelding", lev: "idee Michiel Buisman (AIbaarAI)", in: ["tekst"], out: ["tekst"], komt: true,
-    uitleg: "Vraag aan je eigen documenten, antwoord met de zin waar het staat. Komt." },
+  { id: "zoeken", groep: "samen", naam: "Zoeken met bronvermelding", lev: "EmbeddingGemma 2 (open) · idee Michiel Buisman", in: ["tekst"], out: ["tekst"], vraag: true,
+    uitleg: "Stel een vraag aan je document. Zoekt op betekenis, niet op letterlijke woorden, en geeft de passages die het best passen met hun plek in het stuk. Die passages gaan door als tekst.",
+    run: async (p) => { if (!p.vraag) throw new Error(VRAAG_MIST); const { passages: r, model: zoekmodelNaam } = await zoek(p.tekst, p.vraag); return { passages: r, zoekmodel: zoekmodelNaam, tekst: r.map((x, i) => `[${i + 1}] passage ${x.nr} van ${x.van}\n${x.tekst}`).join("\n\n"), origineel: p.tekst }; } },
+  { id: "antwoord", groep: "samen", naam: "Antwoord geven", lev: "Qwen3 (open)", in: ["tekst"], out: ["tekst"], vraag: true,
+    uitleg: "Beantwoordt je vraag met alleen de tekst die binnenkomt, en noemt de passage waar het staat. Zet deze kraal na Zoeken.",
+    run: async (p) => { if (!p.vraag) throw new Error(VRAAG_MIST); const r = await schrijf(p.tekst, { opdracht: `Beantwoord deze vraag: "${p.vraag.replace(/"/g, "'").slice(0, 300)}". Gebruik alleen de tekst. Noem achter elk feit het nummer van de passage tussen blokhaken, bijvoorbeeld [1]. Staat het antwoord er niet in, schrijf dan: Dat staat niet in de gevonden passages.`, wijze: "begin", max: 500 }); return { tekst: r.tekst, origineel: p.tekst }; } },
 ];
 export const byId = Object.fromEntries(MODULES.map((m) => [m.id, m]));
 
@@ -273,12 +332,17 @@ export const RECEPTEN = [
   { id: "memo", naam: "Memo klaar?", kralen: ["checklist", "b1"], invoer: "tekst" },
   { id: "burgerbrief", naam: "Burgerbrief in B1", kralen: ["b1", "nl-en", "voorlezen"], invoer: "tekst" },
   { id: "anderstalig", naam: "Anderstalige brief", kralen: ["ocr", "tongue", "en-nl", "samenvatten"], invoer: "beeld" },
-  { id: "teamgeheugen", naam: "Teamgeheugen", kralen: ["zoeken"], invoer: "tekst" },
+  { id: "teamgeheugen", naam: "Vraag aan een document", kralen: ["zoeken", "antwoord"], invoer: "tekst" },
   { id: "voorlezen", naam: "Besluit voorlezen", kralen: ["b1", "voorlezen"], invoer: "tekst" },
 ];
 
 // --- Invoer → startpakket ----------------------------------------------------------
-export async function startpakket({ file, tekst }) {
+export async function startpakket({ file, tekst, vraag }) {
+  const p = await leesInvoer({ file, tekst });
+  if (vraag?.trim()) p.vraag = vraag.trim();
+  return p;
+}
+async function leesInvoer({ file, tekst }) {
   if (tekst?.trim()) return { tekst: tekst.trim(), bron: "tekst" };
   if (!file) throw new Error("Geen invoer.");
   const n = file.name.toLowerCase(), t = file.type || "";
