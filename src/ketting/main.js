@@ -139,6 +139,7 @@ window.addEventListener("drop", (e) => { if (lane.contains(e.target)) return; e.
 const telWoorden = (t) => (t ?? "").split(/\s+/).filter(Boolean).length;
 function samenvatting(m, d, pakket) {
   if (d.passages) return `${d.passages.length} passages gevonden`;
+  if (d.actiepunten != null) return d.actiepunten ? `${d.actiepunten} ${d.actiepunten === 1 ? "actiepunt" : "actiepunten"}` : "geen actiepunten gevonden";
   if (d.zekerheid != null) return `${telWoorden(d.tekst)} woorden · ${d.zekerheid} % zeker`;
   if (d.overgeslagen) return `overgeslagen: ${d.overgeslagen}`;
   if (d.tekst != null && m.out.includes("tekst")) return `${d.tekst.split(/\s+/).filter(Boolean).length} woorden`;

@@ -48,9 +48,11 @@ export function kiesLlm(maat) { llmInstelling.maat = maat; try { localStorage.se
 const GPU_WEG = /mapAsync|unmapped|device.*lost|lost.*device|GPUDevice|out of memory|OutOfMemory/i;
 async function taalmodel() {
   if (!navigator.gpu) throw new Error("Het taalmodel heeft WebGPU nodig (Chrome op Android/desktop, Safari 26+).");
-  const id = LLM_KEUZE[llmInstelling.maat];
+  // De gewone bestanden rekenen met 16-bit getallen op de GPU. Kan de GPU dat niet (shader-f16), dan de 32-bit-uitvoering: zelfde model, iets groter.
+  const adapter = await navigator.gpu.requestAdapter().catch(() => null);
+  const id = adapter && !adapter.features.has("shader-f16") ? LLM_KEUZE[llmInstelling.maat].replace("q4f16", "q4f32") : LLM_KEUZE[llmInstelling.maat];
   if (llm && llmId === id) return llm;
-  setStatus(`Taalmodel laden (${id.replace("-q4f16_1-MLC", "")}, eerste keer duurt even)…`);
+  setStatus(`Taalmodel laden (${id.replace(/-q4f\d+_1-MLC/, "")}, eerste keer duurt even)…`);
   const { CreateMLCEngine } = await import("@mlc-ai/web-llm");
   if (llm) { await llm.unload(); llm = null; }
   try { llm = await CreateMLCEngine(id, { initProgressCallback: (p) => { setProgress(p.progress ?? 0); setStatus(p.text); } }); }
@@ -255,8 +257,8 @@ export const MODULES = [
     run: async (p) => { const r = await ocr(p.beeld.blob); return { tekst: r.tekst, zekerheid: r.zekerheid }; } },
   // Luisteren
   { id: "voz", groep: "luisteren", naam: "Transcriberen", lev: "Desert Ant Voz", in: ["audio"], out: ["tekst", "woorden"],
-    uitleg: "Spraak naar tekst, met per woord het tijdstip. 25 talen, raadt de taal zelf.",
-    run: async (p) => { const r = await (await model("voz")).transcribe(p.audio, { onProgress: setProgress }); return { tekst: r.text.trim(), woorden: r.words }; } },
+    uitleg: "Spraak naar tekst, met per woord het tijdstip. 25 talen, raadt de taal zelf. Zijn de sprekers al bepaald, dan wordt de tekst per spreker ingedeeld.",
+    run: async (p) => { const r = await (await model("voz")).transcribe(p.audio, { onProgress: setProgress }); return { tekst: p.sprekers ? sprekerTekst(r.words, p.sprekers) : r.text.trim(), woorden: r.words }; } },
   { id: "who", groep: "luisteren", naam: "Sprekers", lev: "Desert Ant Who", in: ["audio"], out: ["sprekers", "tekst"],
     uitleg: "Wie sprak wanneer. Staat er al een transcript, dan wordt het per spreker ingedeeld.",
     run: async (p) => { const w = (await (await model("who")).diarize(p.audio)).keepingSpeakers({ minimumShare: 0.08 }); const out = { sprekers: w.turns, sprekerAantal: w.speakerCount }; if (p.woorden) out.tekst = sprekerTekst(p.woorden, w.turns); return out; } },
@@ -290,8 +292,13 @@ export const MODULES = [
     uitleg: "Korte samenvatting in het Nederlands. De samenvatting gaat door als tekst; het origineel blijft bij deze kraal. Lange teksten gaan in delen.",
     run: async (p) => { const r = await schrijf(p.tekst, { opdracht: "Vat de tekst samen in hooguit 8 zinnen. Alleen wat erin staat.", deel: "Vat dit deel van een langere tekst samen in hooguit 4 zinnen. Alleen wat erin staat." }); return { tekst: r.tekst, origineel: p.tekst, delen: r.delen }; } },
   { id: "actiepunten", groep: "schrijven", naam: "Actiepunten", lev: "Qwen3 (open)", in: ["tekst"], out: ["tekst"],
-    uitleg: "Besluiten en actiepunten, per persoon als er sprekers zijn.",
-    run: async (p) => { const r = await schrijf(p.tekst, { opdracht: "Haal uit dit verslag de besluiten en actiepunten. Geef een lijst met per regel: wat, wie (als bekend), wanneer (als bekend). Niets verzinnen. Staat er niets, schrijf dan: Geen besluiten of actiepunten gevonden." }); return { tekst: r.tekst, origineel: p.tekst, delen: r.delen }; } },
+    uitleg: "Wat moet er gebeuren en door wie: afspraken, opdrachten en besluiten als lijst. Werkt het best na Transcriberen en Sprekers.",
+    run: async (p) => {
+      // Geen uitweg in de opdracht ("staat er niets, schrijf dan…"): een klein model kiest die te snel.
+      const r = await schrijf(p.tekst, { opdracht: "Maak een lijst van alles wat iemand volgens de tekst moet doen: opdrachten, afspraken, verzoeken en besluiten. Ook als het terloops gezegd wordt. Eén regel per punt, in de vorm: - Wie: wat (wanneer, als dat genoemd is). Voorbeeld: uit 'Jan, bel jij morgen de leverancier even' maak je: - Jan: de leverancier bellen (morgen). Weet je niet wie, schrijf dan 'Onbekend'. Verzin niets dat niet in de tekst staat.", max: 500 });
+      const regels = r.tekst.split("\n").map((x) => x.trim()).filter((x) => /^[-•*\d]/.test(x) && x.length > 6);
+      return { tekst: regels.length ? regels.map((x) => x.replace(/^[•*]\s*|^\d+[.)]\s*/, "- ")).join("\n") : (r.tekst.trim() || "Geen actiepunten gevonden."), actiepunten: regels.length, origineel: p.tekst, delen: r.delen };
+    } },
   { id: "b1", groep: "schrijven", naam: "Herschrijven naar B1", lev: "Qwen3 (open)", in: ["tekst"], out: ["tekst"],
     uitleg: "Dezelfde inhoud in eenvoudig Nederlands: korte zinnen, gewone woorden, u-vorm.",
     run: async (p) => { const r = await schrijf(p.tekst, { opdracht: "Herschrijf de tekst op taalniveau B1: korte zinnen, gewone woorden, actieve vorm, u-vorm. Zelfde inhoud, niets erbij, niets weg.", wijze: "per", max: 1400, stuk: 3000 }); return { tekst: r.tekst, origineel: p.tekst, delen: r.delen }; } },
