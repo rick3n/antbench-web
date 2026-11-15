@@ -250,47 +250,81 @@ async function ocr(blob) {
       logger: (m) => { if (m.status === "recognizing text") setProgress(m.progress); } });
   }
   setStatus("Foto klaarmaken voor het lezen (rechtzetten, schaduw weg)…");
-  const { data } = await ocrWorker.recognize(await voorOcr(blob), {}, { blocks: true });
+  let beeld = await voorOcr(blob);
+  // Eerste keer lezen om te zien waar de tekst staat; staat er een buurkolom of rand omheen,
+  // dan alleen de hoofdkolom uitsnijden en die opnieuw lezen. Dat scheelt het meest.
+  let { data } = await ocrWorker.recognize(beeld, {}, { blocks: true });
+  const ruw = data.text.trim(), k = data.blocks?.length ? kolomVan(data.blocks, beeld.width, beeld.height) : null;
+  if (k) {
+    setStatus("Hoofdkolom gevonden; die wordt apart gelezen…");
+    const c = document.createElement("canvas"); c.width = k.x1 - k.x0; c.height = k.y1 - k.y0;
+    c.getContext("2d").drawImage(beeld, k.x0, k.y0, c.width, c.height, 0, 0, c.width, c.height);
+    beeld = c; ({ data } = await ocrWorker.recognize(beeld, {}, { blocks: true }));
+  }
   const schoon = data.blocks?.length ? opschonen(data.blocks) : null;
-  return { tekst: schoon?.tekst ?? data.text.trim(), ruw: data.text.trim(), weggelaten: schoon?.weggelaten ?? 0, zekerheid: Math.round(data.confidence ?? 0) };
+  return { tekst: schoon?.tekst || data.text.trim(), ruw, uitgesneden: !!k, weggelaten: schoon?.weggelaten ?? 0, zekerheid: Math.round(data.confidence ?? 0) };
+}
+const med = (a) => { const b = [...a].sort((x, y) => x - y); return b[Math.floor(b.length / 2)]; };
+const pct = (a, p) => { const b = [...a].sort((x, y) => x - y); return b[Math.min(b.length - 1, Math.max(0, Math.round(p * (b.length - 1))))]; };
+const alnum = (t) => t.replace(/[^A-Za-zÀ-ÿ0-9]/g, "");
+const regelsVan = (blocks) => blocks.flatMap((b) => b.paragraphs ?? []).flatMap((p) => p.lines ?? []).map((l) => (l.words ?? []).filter((w) => w.text.trim()));
+/**
+ * Waar staat de hoofdkolom? Per regel de woorden opdelen bij een brede witruimte (de goot tussen
+ * kolommen) en het breedste stuk nemen; de regels waar dat stuk breed is vormen de kolom.
+ * Geeft niets terug als er niets te winnen is (tekst vult het beeld al) of als er twee
+ * volwaardige kolommen naast elkaar staan (dan zou uitsnijden tekst weggooien).
+ */
+export function kolomVan(blocks, breedte, hoogte) {
+  const stukken = [];
+  for (const regel of regelsVan(blocks)) {
+    const w = regel.filter((x) => alnum(x.text).length >= 2 || (alnum(x.text).length === 1 && x.confidence >= 80)).sort((a, b) => a.bbox.x0 - b.bbox.x0);
+    if (!w.length) continue;
+    const h = med(w.map((x) => x.bbox.y1 - x.bbox.y0)), delen = [[w[0]]];
+    for (let i = 1; i < w.length; i++) { if (w[i].bbox.x0 - w[i - 1].bbox.x1 > 0.8 * h) delen.push([]); delen[delen.length - 1].push(w[i]); }
+    const maat = delen.map((d) => ({ x0: d[0].bbox.x0, x1: d[d.length - 1].bbox.x1, y0: Math.min(...d.map((x) => x.bbox.y0)), y1: Math.max(...d.map((x) => x.bbox.y1)), h })).sort((a, b) => (b.x1 - b.x0) - (a.x1 - a.x0));
+    stukken.push({ ...maat[0], tweede: maat[1] ? maat[1].x1 - maat[1].x0 : 0 });
+  }
+  if (stukken.length < 4) return null;
+  const breedst = pct(stukken.map((s) => s.x1 - s.x0), 0.9), hoofd = stukken.filter((s) => s.x1 - s.x0 >= 0.5 * breedst);
+  if (hoofd.length < 4 || hoofd.filter((s) => s.tweede >= 0.5 * (s.x1 - s.x0)).length > 0.3 * hoofd.length) return null;
+  const h = med(hoofd.map((s) => s.h)), marge = Math.round(0.6 * h);
+  const x0 = pct(hoofd.map((s) => s.x0), 0.1), x1 = pct(hoofd.map((s) => s.x1), 0.95);
+  // Korte regels (het eind van een alinea) horen er ook bij: alles wat binnen de kolom valt en aansluit op de regels erboven of eronder.
+  const inKolom = stukken.filter((s) => s.x0 >= x0 - h && s.x1 <= x1 + h && s.x1 - s.x0 >= 2 * h).sort((a, b) => a.y0 - b.y0);
+  let y0 = Math.min(...hoofd.map((s) => s.y0)), y1 = Math.max(...hoofd.map((s) => s.y1));
+  for (const s of inKolom) if (s.y0 >= y1 - h && s.y0 - y1 < 1.5 * h) y1 = Math.max(y1, s.y1);
+  for (const s of [...inKolom].reverse()) if (s.y1 <= y0 + h && y0 - s.y1 < 1.5 * h) y0 = Math.min(y0, s.y0);
+  const k = { x0: Math.max(0, x0 - marge), x1: Math.min(breedte, x1 + marge), y0: Math.max(0, y0 - marge), y1: Math.min(hoogte, y1 + marge) };
+  return (k.x1 - k.x0) > 0.9 * breedte && (k.y1 - k.y0) > 0.9 * hoogte ? null : k;
 }
 /**
- * Rommel uit de OCR halen met wat Tesseract per woord weet (plek en zekerheid):
- *  1. de hoofdkolom bepalen uit de regels met genoeg zekere woorden; woorden die daar
- *     links of rechts buiten vallen (flarden van de buurkolom, de paginarand) vervallen;
- *  2. losse tekens zonder letter of cijfer aan het begin en eind van een regel vervallen,
- *     net als onzekere losse letters daar;
- *  3. regels zonder één zeker woord vervallen;
- *  4. afgebroken woorden aan het regeleinde worden weer aan elkaar gezet.
+ * Laatste opruiming: losse tekens zonder letter of cijfer (en onzekere losse letters) aan het
+ * begin en eind van een regel vervallen, regels zonder echt woord vervallen, en afgebroken
+ * woorden aan het regeleinde worden weer aan elkaar gezet.
  */
 export function opschonen(blocks) {
-  const med = (a) => { const b = [...a].sort((x, y) => x - y); return b[Math.floor(b.length / 2)]; };
-  const echt = (w) => w.confidence >= 60 && /[A-Za-zÀ-ÿ]{3,}/.test(w.text);
-  const alineas = blocks.flatMap((b) => b.paragraphs ?? []).map((p) => (p.lines ?? []).map((l) => (l.words ?? []).filter((w) => w.text.trim())));
-  const regels = alineas.flat();
-  const vol = regels.filter((r) => r.filter(echt).length >= 3);
-  let totaal = regels.reduce((n, r) => n + r.length, 0), over = 0;
-  let links = -Infinity, rechts = Infinity;
-  if (vol.length >= 3) {
-    links = med(vol.map((r) => r.find(echt).bbox.x0)); rechts = med(vol.map((r) => [...r].reverse().find(echt).bbox.x1));
-    const marge = 0.015 * (rechts - links); links -= marge; rechts += marge;
+  const rand = (x) => { const a = alnum(x.text); return !a.length || (a.length === 1 && x.confidence < 70); };
+  let totaal = 0, over = 0; const regels = [];
+  for (const l of blocks.flatMap((b) => b.paragraphs ?? []).flatMap((p) => p.lines ?? [])) {
+    let w = (l.words ?? []).filter((x) => x.text.trim()); totaal += w.length;
+    while (w.length && rand(w[0])) w = w.slice(1);
+    while (w.length && rand(w[w.length - 1])) w = w.slice(0, -1);
+    if (!w.some((x) => /[A-Za-zÀ-ÿ]{3,}/.test(x.text) && x.confidence >= 30)) continue;
+    over += w.length;
+    const tekst = w.map((x) => x.text.replace(/^_+|_+$/g, "")).filter(Boolean).join(" ").replace(/\s+([,.;:!?])/g, "$1").replace(/^[‚,;:._|'`]+\s*/, "");
+    regels.push({ tekst, x0: w[0].bbox.x0, x1: w[w.length - 1].bbox.x1, h: med(w.map((x) => x.bbox.y1 - x.bbox.y0)) });
   }
+  if (!regels.length) return { tekst: "", weggelaten: totaal };
+  // Alinea's: Tesseract.js geeft elke regel als eigen alinea, dus zelf bepalen. Een nieuwe alinea
+  // begint met een inspringing, of na een korte regel die op een punt eindigt.
+  const links = med(regels.map((r) => r.x0)), rechts = pct(regels.map((r) => r.x1), 0.9), h = med(regels.map((r) => r.h));
   const uit = [];
-  for (const alinea of alineas) {
-    const tekstregels = [];
-    for (const regel of alinea) {
-      let w = regel.filter((x) => { const m = (x.bbox.x0 + x.bbox.x1) / 2; return m >= links && m <= rechts; });
-      const rand = (x) => !/[A-Za-zÀ-ÿ0-9]/.test(x.text) || (x.text.replace(/[^A-Za-zÀ-ÿ0-9]/g, "").length <= 1 && x.confidence < 70) || /^_+|_+$/.test(x.text) && x.text.replace(/_/g, "").length <= 1;
-      while (w.length && rand(w[0])) w = w.slice(1);
-      while (w.length && rand(w[w.length - 1])) w = w.slice(0, -1);
-      if (!w.some(echt)) continue;
-      over += w.length;
-      tekstregels.push(w.map((x) => x.text.replace(/^_+|_+$/g, "")).join(" ").replace(/\s+([,.;:!?])/g, "$1"));
-    }
-    if (!tekstregels.length) continue;
-    // regels aan elkaar: een afbreekstreepje aan het eind hoort bij het woord op de volgende regel
-    uit.push(tekstregels.reduce((a, r) => (/[A-Za-zÀ-ÿ]-$/.test(a) && /^[a-zà-ÿ]/.test(r) ? a.slice(0, -1) + r : `${a} ${r}`)));
-  }
+  regels.forEach((r, i) => {
+    const vorige = regels[i - 1];
+    const nieuw = !vorige || r.x0 - links > 0.8 * h || (rechts - vorige.x1 > 0.25 * (rechts - links) && /[.!?”"]$/.test(vorige.tekst));
+    if (nieuw) uit.push(r.tekst);
+    else { const a = uit[uit.length - 1]; uit[uit.length - 1] = /[A-Za-zÀ-ÿ]-$/.test(a) && /^[a-zà-ÿ]/.test(r.tekst) ? a.slice(0, -1) + r.tekst : `${a} ${r.tekst}`; }
+  });
   return { tekst: uit.join("\n\n").trim(), weggelaten: totaal - over };
 }
 
@@ -315,7 +349,7 @@ export const MODULES = [
   // Lezen
   { id: "ocr", groep: "lezen", naam: "Scan lezen", lev: "Tesseract (open)", in: ["beeld"], out: ["tekst"],
     uitleg: "Haalt de tekst uit een foto of scan van een brief of document. Nederlands getraind. Flarden van een buurkolom en vlekjes aan de rand worden weggelaten; afgebroken woorden worden weer heel.",
-    run: async (p) => { const r = await ocr(p.beeld.blob); return { tekst: r.tekst, zekerheid: r.zekerheid, weggelaten: r.weggelaten, ruw: r.ruw }; } },
+    run: async (p) => { const r = await ocr(p.beeld.blob); return { tekst: r.tekst, zekerheid: r.zekerheid, weggelaten: r.weggelaten, uitgesneden: r.uitgesneden, ruw: r.ruw }; } },
   // Luisteren
   { id: "voz", groep: "luisteren", naam: "Transcriberen", lev: "Desert Ant Voz", in: ["audio"], out: ["tekst", "woorden"],
     uitleg: "Spraak naar tekst, met per woord het tijdstip. 25 talen, raadt de taal zelf. Zijn de sprekers al bepaald, dan wordt de tekst per spreker ingedeeld.",

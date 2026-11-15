@@ -72,6 +72,7 @@ een gebruiker direct te zien welke versie die draaide.
 | 0.10.0 | Nieuwe kralen *Zoeken met bronvermelding* (EmbeddingGemma 2 op WebGPU, anders multilingual-e5-small) en *Antwoord geven*; vraagveld bij de invoer; documentvectoren blijven bewaard voor een volgende vraag. Proef met 12 vragen op een Nederlands besluit: goede passage bovenaan bij 11 (EmbeddingGemma) en 9 (e5), bij beide altijd in de top 3 |
 | 0.10.1 | Scan lezen: telefoonfoto eerst klaarmaken (rechtop, hooguit 2600 px, grijs, schaduw vlak trekken, contrast oprekken) zodat ruis en schaduw niet als letters worden gelezen; zekerheid van de herkenning erbij, met een waarschuwing onder 70 % |
 | 0.10.2 | Actiepunten werkt met vaste regels in plaats van het taalmodel (Qwen3-0.6B zei in een proef bij elke tekst "geen actiepunten" of verzon ze); Transcriberen deelt per spreker in als Sprekers al gedraaid heeft; taalmodel laadt de 32-bit-uitvoering als de GPU geen shader-f16 kan |
+| 0.10.3 | Scan lezen in twee stappen: eerst bepalen waar het tekstblok staat, dan alleen dat blok lezen (buurkolommen, randen en stippellijnen vallen weg); losse tekens aan de regelranden weg, afgebroken woorden weer heel, regels samengevoegd tot alinea's. Op een echte krantenfoto: van een kolom vol flarden naar lopende tekst met een handvol leesfouten |
 
 Verandert `package-lock.json`, zet dan `npmDepsHash` in `default.nix` opnieuw
 (`nix run nixpkgs#prefetch-npm-deps -- package-lock.json`).
