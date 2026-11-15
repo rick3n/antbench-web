@@ -258,6 +258,8 @@ function kaart(i) {
   if (d.passages) { voeg(`Gevonden passages, beste eerst · ${d.zoekmodel}`, tabel(d.passages.map((x, j) => [`[${j + 1}] passage ${x.nr} van ${x.van} · ${Math.round(x.score * 100)} %`, open ? x.tekst : x.tekst.slice(0, 160).replace(/\s+\S*$/, "") + (x.tekst.length > 160 ? "…" : "")]))); }
   else if (d.tekst != null && m.out.includes("tekst")) tekstblok(d.tekst, `${m.id === "redact" ? "Gemaskeerde tekst" : "Nieuwe tekst"}${d.delen > 1 ? ` · gemaakt in ${d.delen} delen` : ""}`);
   if (d.spraak) { u.spraakUrl ??= URL.createObjectURL(d.spraak); const a = document.createElement("audio"); a.controls = true; a.src = u.spraakUrl; voeg("Spraak", a); }
+  if (d.weggelaten) { const w = document.createElement("div"); w.className = "kreeg"; w.textContent = `${d.weggelaten} losse tekens en flarden buiten de tekstkolom weggelaten.`; k.append(w); }
+  if (open && d.ruw && d.weggelaten) { const det = document.createElement("details"); det.innerHTML = `<summary>Wat de OCR letterlijk las</summary>`; const p = document.createElement("div"); p.className = "tekstblok"; p.innerHTML = md(d.ruw); det.append(p); voeg("", det); }
   if (open && d.origineel) { const det = document.createElement("details"); det.innerHTML = `<summary>Wat deze kraal binnenkreeg</summary>`; const p = document.createElement("div"); p.className = "tekstblok"; p.innerHTML = md(d.origineel); det.append(p); voeg("", det); }
   if (u.door) { const p = document.createElement("div"); p.className = "door" + (u.nieuw ? " nieuw" : ""); p.textContent = `Geeft door: ${u.door}${u.labels?.length ? ` · labels: ${u.labels.join(", ")}` : ""}`; k.append(p); }
   return k;

@@ -250,8 +250,48 @@ async function ocr(blob) {
       logger: (m) => { if (m.status === "recognizing text") setProgress(m.progress); } });
   }
   setStatus("Foto klaarmaken voor het lezen (rechtzetten, schaduw weg)…");
-  const { data } = await ocrWorker.recognize(await voorOcr(blob));
-  return { tekst: data.text.trim(), zekerheid: Math.round(data.confidence ?? 0) };
+  const { data } = await ocrWorker.recognize(await voorOcr(blob), {}, { blocks: true });
+  const schoon = data.blocks?.length ? opschonen(data.blocks) : null;
+  return { tekst: schoon?.tekst ?? data.text.trim(), ruw: data.text.trim(), weggelaten: schoon?.weggelaten ?? 0, zekerheid: Math.round(data.confidence ?? 0) };
+}
+/**
+ * Rommel uit de OCR halen met wat Tesseract per woord weet (plek en zekerheid):
+ *  1. de hoofdkolom bepalen uit de regels met genoeg zekere woorden; woorden die daar
+ *     links of rechts buiten vallen (flarden van de buurkolom, de paginarand) vervallen;
+ *  2. losse tekens zonder letter of cijfer aan het begin en eind van een regel vervallen,
+ *     net als onzekere losse letters daar;
+ *  3. regels zonder één zeker woord vervallen;
+ *  4. afgebroken woorden aan het regeleinde worden weer aan elkaar gezet.
+ */
+export function opschonen(blocks) {
+  const med = (a) => { const b = [...a].sort((x, y) => x - y); return b[Math.floor(b.length / 2)]; };
+  const echt = (w) => w.confidence >= 60 && /[A-Za-zÀ-ÿ]{3,}/.test(w.text);
+  const alineas = blocks.flatMap((b) => b.paragraphs ?? []).map((p) => (p.lines ?? []).map((l) => (l.words ?? []).filter((w) => w.text.trim())));
+  const regels = alineas.flat();
+  const vol = regels.filter((r) => r.filter(echt).length >= 3);
+  let totaal = regels.reduce((n, r) => n + r.length, 0), over = 0;
+  let links = -Infinity, rechts = Infinity;
+  if (vol.length >= 3) {
+    links = med(vol.map((r) => r.find(echt).bbox.x0)); rechts = med(vol.map((r) => [...r].reverse().find(echt).bbox.x1));
+    const marge = 0.015 * (rechts - links); links -= marge; rechts += marge;
+  }
+  const uit = [];
+  for (const alinea of alineas) {
+    const tekstregels = [];
+    for (const regel of alinea) {
+      let w = regel.filter((x) => { const m = (x.bbox.x0 + x.bbox.x1) / 2; return m >= links && m <= rechts; });
+      const rand = (x) => !/[A-Za-zÀ-ÿ0-9]/.test(x.text) || (x.text.replace(/[^A-Za-zÀ-ÿ0-9]/g, "").length <= 1 && x.confidence < 70) || /^_+|_+$/.test(x.text) && x.text.replace(/_/g, "").length <= 1;
+      while (w.length && rand(w[0])) w = w.slice(1);
+      while (w.length && rand(w[w.length - 1])) w = w.slice(0, -1);
+      if (!w.some(echt)) continue;
+      over += w.length;
+      tekstregels.push(w.map((x) => x.text.replace(/^_+|_+$/g, "")).join(" ").replace(/\s+([,.;:!?])/g, "$1"));
+    }
+    if (!tekstregels.length) continue;
+    // regels aan elkaar: een afbreekstreepje aan het eind hoort bij het woord op de volgende regel
+    uit.push(tekstregels.reduce((a, r) => (/[A-Za-zÀ-ÿ]-$/.test(a) && /^[a-zà-ÿ]/.test(r) ? a.slice(0, -1) + r : `${a} ${r}`)));
+  }
+  return { tekst: uit.join("\n\n").trim(), weggelaten: totaal - over };
 }
 
 // --- Voorlezen (Piper) --------------------------------------------------------------
@@ -274,8 +314,8 @@ async function voorlezen(tekst) {
 export const MODULES = [
   // Lezen
   { id: "ocr", groep: "lezen", naam: "Scan lezen", lev: "Tesseract (open)", in: ["beeld"], out: ["tekst"],
-    uitleg: "Haalt de tekst uit een foto of scan van een brief of document. Nederlands getraind.",
-    run: async (p) => { const r = await ocr(p.beeld.blob); return { tekst: r.tekst, zekerheid: r.zekerheid }; } },
+    uitleg: "Haalt de tekst uit een foto of scan van een brief of document. Nederlands getraind. Flarden van een buurkolom en vlekjes aan de rand worden weggelaten; afgebroken woorden worden weer heel.",
+    run: async (p) => { const r = await ocr(p.beeld.blob); return { tekst: r.tekst, zekerheid: r.zekerheid, weggelaten: r.weggelaten, ruw: r.ruw }; } },
   // Luisteren
   { id: "voz", groep: "luisteren", naam: "Transcriberen", lev: "Desert Ant Voz", in: ["audio"], out: ["tekst", "woorden"],
     uitleg: "Spraak naar tekst, met per woord het tijdstip. 25 talen, raadt de taal zelf. Zijn de sprekers al bepaald, dan wordt de tekst per spreker ingedeeld.",
