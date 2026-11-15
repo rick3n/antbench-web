@@ -129,6 +129,36 @@ export async function imageToPixels(blob, max = 1600) {
   return { data: img.data, width: img.width, height: img.height, canvas: c };
 }
 
+/**
+ * Foto van papier → canvas dat OCR aankan. Een telefoonfoto heeft schaduw, grijs papier en ruis;
+ * Tesseract kiest één drempel voor de hele foto en leest dan ruis als letters. Daarom:
+ * rechtop zetten, verkleinen tot hooguit `max` px, grijs maken, de belichting vlak trekken
+ * (elk punt delen door de plaatselijke papierkleur) en het contrast oprekken.
+ */
+export async function voorOcr(blob, max = 2600) {
+  const bmp = await createImageBitmap(blob, { imageOrientation: "from-image" });
+  const s = Math.min(1, max / Math.max(bmp.width, bmp.height));
+  const w = Math.round(bmp.width * s), h = Math.round(bmp.height * s);
+  const c = document.createElement("canvas"); c.width = w; c.height = h;
+  const ctx = c.getContext("2d", { willReadFrequently: true }); ctx.drawImage(bmp, 0, 0, w, h);
+  // plaatselijke papierkleur: sterk verkleinen (middelt letters weg) en weer glad uitrekken
+  const kw = Math.max(8, Math.round(w / 40)), kh = Math.max(8, Math.round(h / 40));
+  const klein = document.createElement("canvas"); klein.width = kw; klein.height = kh;
+  const kctx = klein.getContext("2d"); kctx.imageSmoothingQuality = "high"; kctx.drawImage(c, 0, 0, kw, kh);
+  const bg = document.createElement("canvas"); bg.width = w; bg.height = h;
+  const bctx = bg.getContext("2d", { willReadFrequently: true }); bctx.imageSmoothingQuality = "high"; bctx.drawImage(klein, 0, 0, w, h);
+  bmp.close?.();
+  const img = ctx.getImageData(0, 0, w, h), d = img.data, b = bctx.getImageData(0, 0, w, h).data;
+  const grijs = (a, i) => 0.299 * a[i] + 0.587 * a[i + 1] + 0.114 * a[i + 2];
+  for (let i = 0; i < d.length; i += 4) {
+    const v = grijs(d, i) / Math.max(1, grijs(b, i));          // 1 = papier, lager = inkt
+    const u = Math.max(0, Math.min(1, (v - 0.62) / (0.93 - 0.62)));   // zwartpunt 0,62 · witpunt 0,93: papierruis wordt wit
+    d[i] = d[i + 1] = d[i + 2] = Math.round(u * 255); d[i + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+  return c;
+}
+
 // --- Standaardacties per model (gebruikt door Project) ---------------------------
 
 /** Moderator-instellingen (gedeeld door Beeld en Project). De SDK neemt de hoogste

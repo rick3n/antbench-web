@@ -99,3 +99,4 @@ footer { margin-top: 1.2rem; font-size: .82rem; opacity: .75; }
 footer a { color: inherit; }
 
 #vraag { width: 100%; font: inherit; padding: .55rem .6rem; margin-top: .4rem; border-radius: .5rem; border: 1px solid var(--line); background: transparent; color: inherit; }
+.let-op { margin: 0; padding: .4rem .6rem; border-radius: .5rem; background: color-mix(in srgb, var(--fout) 15%, transparent); font-size: .88rem; }

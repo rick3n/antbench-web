@@ -70,6 +70,7 @@ een gebruiker direct te zien welke versie die draaide.
 | 0.8.2 | Taalmodel: standaard *klein* op telefoons (deviceMemory is in Chrome afgekapt op 8), keuze onthouden; als de GPU het model laat vallen (`mapAsync`/`unmapped`) wordt het model gelost, op *klein* overgeschakeld en één keer opnieuw geprobeerd; bestandsgrootte in kB onder 1 MB |
 | 0.9.0 | Ketting loopt logischer: de tekst is de rode draad, label-kralen (taal, onderwerp) laten hem ongemoeid; uitkomst is een logboek dat per kraal toont wat hij kreeg, opleverde en doorgeeft (tussenresultaten verschijnen tijdens het rijgen); taalmodel krijgt opdracht en inhoud gescheiden en geeft nooit meer de opdracht door, lange teksten gaan in delen (contextvenster 4096 tokens); vertalen slaat over als de taal al klopt; taalmodel standaard *klein* op elk toestel |
 | 0.10.0 | Nieuwe kralen *Zoeken met bronvermelding* (EmbeddingGemma 2 op WebGPU, anders multilingual-e5-small) en *Antwoord geven*; vraagveld bij de invoer; documentvectoren blijven bewaard voor een volgende vraag. Proef met 12 vragen op een Nederlands besluit: goede passage bovenaan bij 11 (EmbeddingGemma) en 9 (e5), bij beide altijd in de top 3 |
+| 0.10.1 | Scan lezen: telefoonfoto eerst klaarmaken (rechtop, hooguit 2600 px, grijs, schaduw vlak trekken, contrast oprekken) zodat ruis en schaduw niet als letters worden gelezen; zekerheid van de herkenning erbij, met een waarschuwing onder 70 % |
 
 Verandert `package-lock.json`, zet dan `npmDepsHash` in `default.nix` opnieuw
 (`nix run nixpkgs#prefetch-npm-deps -- package-lock.json`).

@@ -7,7 +7,7 @@
 // Een kraal kleurt groen als alles wat hij nodig heeft op dat punt in de ketting
 // al aanwezig is, anders rood. Kralen met status "komt" bestaan nog niet.
 import { BASE, setProgress, setStatus } from "../ui.js";
-import { model, actions, decodeAudio, downsample, toWav, imageToPixels, fileToText, fmt } from "../engine.js";
+import { model, actions, decodeAudio, downsample, toWav, imageToPixels, voorOcr, fileToText, fmt } from "../engine.js";
 
 // --- Sleutels van het doorgeefpakket (voor uitleg en kleur) ---------------------
 export const SLEUTELS = {
@@ -226,8 +226,9 @@ async function ocr(blob) {
     ocrWorker = await createWorker("nld", 1, { workerPath: `${BASE}tess/worker.min.js`, corePath: `${BASE}tess/`, langPath: `${BASE}tess/lang/`, gzip: true,
       logger: (m) => { if (m.status === "recognizing text") setProgress(m.progress); } });
   }
-  const { data } = await ocrWorker.recognize(blob);
-  return data.text.trim();
+  setStatus("Foto klaarmaken voor het lezen (rechtzetten, schaduw weg)…");
+  const { data } = await ocrWorker.recognize(await voorOcr(blob));
+  return { tekst: data.text.trim(), zekerheid: Math.round(data.confidence ?? 0) };
 }
 
 // --- Voorlezen (Piper) --------------------------------------------------------------
@@ -251,7 +252,7 @@ export const MODULES = [
   // Lezen
   { id: "ocr", groep: "lezen", naam: "Scan lezen", lev: "Tesseract (open)", in: ["beeld"], out: ["tekst"],
     uitleg: "Haalt de tekst uit een foto of scan van een brief of document. Nederlands getraind.",
-    run: async (p) => ({ tekst: await ocr(p.beeld.blob) }) },
+    run: async (p) => { const r = await ocr(p.beeld.blob); return { tekst: r.tekst, zekerheid: r.zekerheid }; } },
   // Luisteren
   { id: "voz", groep: "luisteren", naam: "Transcriberen", lev: "Desert Ant Voz", in: ["audio"], out: ["tekst", "woorden"],
     uitleg: "Spraak naar tekst, met per woord het tijdstip. 25 talen, raadt de taal zelf.",

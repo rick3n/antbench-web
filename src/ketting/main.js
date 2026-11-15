@@ -139,6 +139,7 @@ window.addEventListener("drop", (e) => { if (lane.contains(e.target)) return; e.
 const telWoorden = (t) => (t ?? "").split(/\s+/).filter(Boolean).length;
 function samenvatting(m, d, pakket) {
   if (d.passages) return `${d.passages.length} passages gevonden`;
+  if (d.zekerheid != null) return `${telWoorden(d.tekst)} woorden · ${d.zekerheid} % zeker`;
   if (d.overgeslagen) return `overgeslagen: ${d.overgeslagen}`;
   if (d.tekst != null && m.out.includes("tekst")) return `${d.tekst.split(/\s+/).filter(Boolean).length} woorden`;
   if (d.spraak) return `${grootte(d.spraak.size)} spraak`;
@@ -252,6 +253,7 @@ function kaart(i) {
   if (d.tags) voeg("Trefwoorden", tabel([["", d.tags.join(", ")]]));
   if (d.sprekers) voeg("Sprekers", tabel([["Aantal", d.sprekerAantal], ["Beurten", d.sprekers.length]]));
   if (d.nsfw != null) voeg("Geschikt om te delen?", tabel([["Oordeel", d.nsfw ? "liever niet" : "ja"], ["Score", `${Math.round(d.nsfwScore * 100)} %`]]));
+  if (d.zekerheid != null && d.zekerheid < 70) { const w = document.createElement("p"); w.className = "let-op"; w.textContent = `Let op: de herkenning is onzeker (${d.zekerheid} %). Fotografeer recht van boven, met het stuk beeldvullend en scherp, bij gelijkmatig licht.`; voeg("", w); }
   if (d.passages) { voeg(`Gevonden passages, beste eerst · ${d.zoekmodel}`, tabel(d.passages.map((x, j) => [`[${j + 1}] passage ${x.nr} van ${x.van} · ${Math.round(x.score * 100)} %`, open ? x.tekst : x.tekst.slice(0, 160).replace(/\s+\S*$/, "") + (x.tekst.length > 160 ? "…" : "")]))); }
   else if (d.tekst != null && m.out.includes("tekst")) tekstblok(d.tekst, `${m.id === "redact" ? "Gemaskeerde tekst" : "Nieuwe tekst"}${d.delen > 1 ? ` · gemaakt in ${d.delen} delen` : ""}`);
   if (d.spraak) { u.spraakUrl ??= URL.createObjectURL(d.spraak); const a = document.createElement("audio"); a.controls = true; a.src = u.spraakUrl; voeg("Spraak", a); }
