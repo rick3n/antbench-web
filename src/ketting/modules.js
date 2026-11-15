@@ -143,6 +143,27 @@ async function schrijf(tekst, { opdracht, deel = opdracht, wijze = "samen", max 
   return { tekst: await schrijfStuk(opdracht, samen, max), delen: delen.length };
 }
 
+// --- Actiepunten met vaste regels ---------------------------------------------------
+// Proef (nov 2026): Qwen3-0.6B zei bij elke tekst "geen actiepunten", of verzon ze juist.
+// Zinnen herkennen aan hun vorm is voorspelbaar en werkt ook zonder WebGPU.
+const ACTIE = [
+  /\bactiepunt/i, /\bafspraak\b|\bafgesproken\b|\bspreken\b.{0,12}\baf\b|\bspreek\b.{0,12}\baf\b/i, /\bbesluit(en)?\b|\bbesloten\b/i,
+  /\b(moet|moeten|dient|dienen)\b/i, /\b(kun|kan|kunt|wil|wilt|zou|zouden|mag)\s+(jij|je|u|jullie)\b/i,
+  /\b(ik|we|wij)\s+(ga|gaan|zal|zullen|zorg|zorgen|regel|regelen|stuur|sturen|bel|bellen|maak|maken|pak|pakken|neem|nemen|lever|leveren|plan|plannen|vraag|vragen)\b(?!\s+er)/i,
+  /\b(doe|regel|stuur|bel|pak|lever|plan|vraag)\s+ik\b/i, /\buiterlijk\b|\bdeadline\b|\bvóór\s+(maandag|dinsdag|woensdag|donderdag|vrijdag|zaterdag|zondag|eind|het einde|\d)/i,
+  /\b(stuurt|levert|belt|regelt|maakt|schrijft|plant|informeert|reserveert|controleert|vraagt)\b.{0,60}\b(rond|aan|op|na|uit|door|in)\b[.!?]?$/i, /\bzorgt\b.{0,8}\bvoor\b|\bpakt\b.{0,40}\bop\b|\bneemt\b.{0,30}\bcontact\b/i,
+  /\b(graag|svp|alsjeblieft|alstublieft)\b/i, /\bnog\b.{0,40}\b(regelen|reserveren|doen|uitzoeken|navragen|aanleveren|afstemmen)\b/i,
+];
+export function actiezinnen(tekst) {
+  const uit = []; let wie = "";
+  for (const regel of tekst.split("\n")) {
+    const kop = /^\*\*(.+?)\*\*/.exec(regel.trim());
+    if (kop) { wie = kop[1]; continue; }
+    for (const zin of regel.match(/[^.!?]+[.!?]+|[^.!?]+$/g) ?? []) { const z = zin.trim(); if (z.length > 8 && ACTIE.some((r) => r.test(z))) uit.push({ wie, zin: z }); }
+  }
+  return uit;
+}
+
 // --- Vertalen (Transformers.js, Opus-MT) ------------------------------------------
 const vertalers = {};
 async function vertaler(paar) {
@@ -291,14 +312,9 @@ export const MODULES = [
   { id: "samenvatten", groep: "schrijven", naam: "Samenvatten", lev: "Qwen3 (open)", in: ["tekst"], out: ["tekst"],
     uitleg: "Korte samenvatting in het Nederlands. De samenvatting gaat door als tekst; het origineel blijft bij deze kraal. Lange teksten gaan in delen.",
     run: async (p) => { const r = await schrijf(p.tekst, { opdracht: "Vat de tekst samen in hooguit 8 zinnen. Alleen wat erin staat.", deel: "Vat dit deel van een langere tekst samen in hooguit 4 zinnen. Alleen wat erin staat." }); return { tekst: r.tekst, origineel: p.tekst, delen: r.delen }; } },
-  { id: "actiepunten", groep: "schrijven", naam: "Actiepunten", lev: "Qwen3 (open)", in: ["tekst"], out: ["tekst"],
-    uitleg: "Wat moet er gebeuren en door wie: afspraken, opdrachten en besluiten als lijst. Werkt het best na Transcriberen en Sprekers.",
-    run: async (p) => {
-      // Geen uitweg in de opdracht ("staat er niets, schrijf dan…"): een klein model kiest die te snel.
-      const r = await schrijf(p.tekst, { opdracht: "Maak een lijst van alles wat iemand volgens de tekst moet doen: opdrachten, afspraken, verzoeken en besluiten. Ook als het terloops gezegd wordt. Eén regel per punt, in de vorm: - Wie: wat (wanneer, als dat genoemd is). Voorbeeld: uit 'Jan, bel jij morgen de leverancier even' maak je: - Jan: de leverancier bellen (morgen). Weet je niet wie, schrijf dan 'Onbekend'. Verzin niets dat niet in de tekst staat.", max: 500 });
-      const regels = r.tekst.split("\n").map((x) => x.trim()).filter((x) => /^[-•*\d]/.test(x) && x.length > 6);
-      return { tekst: regels.length ? regels.map((x) => x.replace(/^[•*]\s*|^\d+[.)]\s*/, "- ")).join("\n") : (r.tekst.trim() || "Geen actiepunten gevonden."), actiepunten: regels.length, origineel: p.tekst, delen: r.delen };
-    } },
+  { id: "actiepunten", groep: "begrijpen", naam: "Actiepunten", lev: "eigen regels (geen model)", in: ["tekst"], out: ["tekst"],
+    uitleg: "Haalt de zinnen eruit waarin iets moet gebeuren, gevraagd, afgesproken of besloten wordt, met de spreker erbij als die bekend is. Vaste regels, geen taalmodel: het kleine taalmodel bleek hier onbetrouwbaar.",
+    run: async (p) => { const r = actiezinnen(p.tekst); return { tekst: r.length ? r.map((x) => `- ${x.wie ? `${x.wie}: ` : ""}${x.zin}`).join("\n") : "Geen actiepunten gevonden.", actiepunten: r.length, origineel: p.tekst }; } },
   { id: "b1", groep: "schrijven", naam: "Herschrijven naar B1", lev: "Qwen3 (open)", in: ["tekst"], out: ["tekst"],
     uitleg: "Dezelfde inhoud in eenvoudig Nederlands: korte zinnen, gewone woorden, u-vorm.",
     run: async (p) => { const r = await schrijf(p.tekst, { opdracht: "Herschrijf de tekst op taalniveau B1: korte zinnen, gewone woorden, actieve vorm, u-vorm. Zelfde inhoud, niets erbij, niets weg.", wijze: "per", max: 1400, stuk: 3000 }); return { tekst: r.tekst, origineel: p.tekst, delen: r.delen }; } },
