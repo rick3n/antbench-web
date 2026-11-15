@@ -134,7 +134,9 @@ window.addEventListener("dragover", (e) => { if (!lane.contains(e.target)) e.pre
 window.addEventListener("drop", (e) => { if (lane.contains(e.target)) return; e.preventDefault(); const f = e.dataTransfer.files?.[0]; if (f) zetBestand(f, f.name); });
 
 // --- Draaien ---------------------------------------------------------------------------
+const telWoorden = (t) => (t ?? "").split(/\s+/).filter(Boolean).length;
 function samenvatting(m, d, pakket) {
+  if (d.overgeslagen) return `overgeslagen: ${d.overgeslagen}`;
   if (d.tekst != null && m.out.includes("tekst")) return `${d.tekst.split(/\s+/).filter(Boolean).length} woorden`;
   if (d.spraak) return `${grootte(d.spraak.size)} spraak`;
   if (d.sprekers) return `${d.sprekerAantal} sprekers`;
@@ -150,7 +152,7 @@ function samenvatting(m, d, pakket) {
 
 $("go").onclick = async () => {
   if (bezig) return;
-  bezig = true; uitkomsten = []; tekenKetting(); $("go").disabled = true; $("progress").classList.add("on");
+  bezig = true; uitkomsten = []; gekozenKraal = null; tekenKetting(); tekenLogboek(); $("go").disabled = true; $("progress").classList.add("on");
   const t0 = performance.now(); performance.clearResourceTimings();
   let pakket;
   try { setStatus("Invoer lezen…"); pakket = await startpakket(invoer); }
@@ -158,18 +160,21 @@ $("go").onclick = async () => {
   for (let i = 0; i < ketting.length; i++) {
     const m = byId[ketting[i]]; const tb = performance.now();
     document.querySelectorAll(".bead")[i]?.classList.add("bezig");
-    if (m.komt) { uitkomsten[i] = { id: m.id, ok: false, samenvatting: "bestaat nog niet — de ketting stopt hier", pakket: {} }; tekenKetting(); setStatus(`"${m.naam}" bestaat nog niet; tot hier gerijgd.`); break; }
+    if (m.komt) { uitkomsten[i] = { id: m.id, ok: false, samenvatting: "bestaat nog niet — de ketting stopt hier", pakket: {} }; tekenKetting(); tekenLogboek(i); setStatus(`"${m.naam}" bestaat nog niet; tot hier gerijgd.`); break; }
     const mist = m.in.filter((s) => pakket[s] == null);
-    if (mist.length) { uitkomsten[i] = { id: m.id, ok: false, samenvatting: `mist ${mist.map((s) => SLEUTELS[s]).join(", ")}`, pakket: {} }; tekenKetting(); setStatus(`"${m.naam}" mist ${mist.map((s) => SLEUTELS[s]).join(", ")}; de ketting stopt hier.`); break; }
+    if (mist.length) { uitkomsten[i] = { id: m.id, ok: false, samenvatting: `mist ${mist.map((s) => SLEUTELS[s]).join(", ")}`, pakket: {} }; tekenKetting(); tekenLogboek(i); setStatus(`"${m.naam}" mist ${mist.map((s) => SLEUTELS[s]).join(", ")}; de ketting stopt hier.`); break; }
     try {
       setStatus(`${i + 1}/${ketting.length} ${m.naam}…`); setProgress(0);
+      const kreeg = m.in.map((k) => beschrijf(k, pakket)).join(" + "), tekstVoor = pakket.tekst;
       const d = await m.run(pakket);
       Object.assign(pakket, d);
-      uitkomsten[i] = { id: m.id, ok: true, samenvatting: samenvatting(m, d, pakket), pakket: d, ms: performance.now() - tb };
-      tekenKetting();
+      const nieuw = d.tekst != null && d.tekst !== tekstVoor;
+      const door = pakket.tekst == null ? "" : nieuw ? `nieuwe tekst (${telWoorden(pakket.tekst)} woorden)` : `tekst ongewijzigd (${telWoorden(pakket.tekst)} woorden)`;
+      uitkomsten[i] = { id: m.id, ok: true, samenvatting: samenvatting(m, d, pakket), pakket: d, ms: performance.now() - tb, kreeg, door, nieuw, labels: labels(pakket) };
+      tekenKetting(); tekenLogboek(i);
     } catch (e) {
       console.error(m.id, e);
-      uitkomsten[i] = { id: m.id, ok: false, samenvatting: `mislukt: ${e.message ?? e}`, pakket: {} }; tekenKetting(); setStatus(`${m.naam} mislukt: ${e.message ?? e}`); break;
+      uitkomsten[i] = { id: m.id, ok: false, samenvatting: `mislukt: ${e.message ?? e}`, pakket: {} }; tekenKetting(); tekenLogboek(i); setStatus(`${m.naam} mislukt: ${e.message ?? e}`); break;
     }
   }
   await new Promise((r) => setTimeout(r, 50));
@@ -177,8 +182,7 @@ $("go").onclick = async () => {
   if (geslaagd === ketting.length) setStatus(`Ketting klaar in ${((performance.now() - t0) / 1000).toFixed(1)} s · ${net.text}${navigator.onLine ? "" : " · offline"}`);
   $("progress").classList.remove("on"); setProgress(0);
   bezig = false; tekenKetting();
-  const laatste = uitkomsten.map((u, i) => (u?.ok ? i : -1)).filter((i) => i >= 0).pop();
-  if (laatste != null) toonUitkomst(laatste, pakket);
+  eindpakket = pakket; tekenLogboek();
   window.__pakket = pakket;
 };
 
@@ -187,25 +191,76 @@ function md(t) {
   const esc = (s) => s.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
   return esc(t).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/\[([A-Z_]+_\d+)\]/g, "<mark>[$1]</mark>").replace(/\n/g, "<br>");
 }
-function toonUitkomst(i) {
-  const u = uitkomsten[i]; if (!u) return; gekozenKraal = i;
-  const m = byId[u.id], d = u.pakket, box = $("uitkomst"); box.replaceChildren();
-  document.querySelectorAll(".bead").forEach((b, j) => b.classList.toggle("gekozen", j === i));
-  const h = document.createElement("h3"); h.textContent = `${ICOON[m.groep]} ${m.naam} — ${u.samenvatting}${u.ms ? ` · ${(u.ms / 1000).toFixed(1)} s` : ""}`; box.append(h);
-  const voeg = (titel, node) => { const d = document.createElement("div"); d.className = "deel"; if (titel) { const t = document.createElement("div"); t.className = "deeltitel"; t.textContent = titel; d.append(t); } d.append(node); box.append(d); };
-  const tabel = (rijen) => { const t = document.createElement("table"); for (const [k, v] of rijen) { const r = t.insertRow(); r.insertCell().textContent = k; r.insertCell().textContent = v; } return t; };
-  if (!u.ok) { const p = document.createElement("p"); p.textContent = u.samenvatting; voeg("", p); return; }
-  if (d.beoordeling) { const p = document.createElement("div"); p.innerHTML = md(d.beoordeling); voeg("Beoordeling", p); }
-  if (d.tekst != null && m.out.includes("tekst")) { const p = document.createElement("div"); p.className = "tekstblok"; p.innerHTML = md(d.tekst); voeg(m.id === "redact" ? "Gemaskeerde tekst (gaat door)" : "Tekst (gaat door)", p); }
-  if (d.spraak) { const a = document.createElement("audio"); a.controls = true; a.src = URL.createObjectURL(d.spraak); voeg("Spraak", a); }
-  if (d.pgg) voeg("Persoonsgegevens", tabel(d.pgg.map((x) => [x.label, x.placeholder ?? x.original ?? ""])));
+/** Eén onderdeel van het pakket in woorden: "tekst (412 woorden)". */
+function beschrijf(k, p) {
+  if (k === "tekst") return `tekst (${telWoorden(p.tekst)} woorden)`;
+  if (k === "audio") return `audio (${fmt(p.audio.duration)})`;
+  if (k === "beeld") return "beeld";
+  return SLEUTELS[k] ?? k;
+}
+/** De labels die op dit moment op het pakket zitten. */
+function labels(p) {
+  const l = [];
+  if (p.taal) l.push(`taal: ${p.taal}`);
+  if (p.onderwerpen?.length) l.push(`onderwerp: ${p.onderwerpen[0].name}`);
+  if (p.pgg) l.push(`${p.pgg.length} persoonsgegevens gemaskeerd`);
+  if (p.sprekerAantal) l.push(`${p.sprekerAantal} sprekers`);
+  if (p.tags?.length) l.push(`${p.tags.length} trefwoorden`);
+  if (p.nsfw != null) l.push(p.nsfw ? "delen: liever niet" : "delen: ok");
+  return l;
+}
+let eindpakket = null;
+const KORT = 320;
+/** Het logboek: per kraal een kaart met wat hij kreeg, wat hij opleverde en wat er doorgaat. Verschijnt tijdens het rijgen. */
+function tekenLogboek(nieuwste = null) {
+  const box = $("uitkomst"); box.replaceChildren();
+  if (!uitkomsten.some(Boolean)) { box.textContent = bezig ? "Bezig…" : "Nog niets gerijgd."; $("acties").style.display = "none"; return; }
+  uitkomsten.forEach((u, i) => { if (u) box.append(kaart(i)); });
+  if (eindpakket && !bezig) {
+    const e = document.createElement("div"); e.className = "stap eind";
+    const l = labels(eindpakket);
+    e.innerHTML = `<div class="kop"><span class="nr">🎁</span><b>Aan het eind in het pakket</b></div>`;
+    const p = document.createElement("div"); p.className = "door"; p.textContent = [eindpakket.tekst != null ? `tekst (${telWoorden(eindpakket.tekst)} woorden)` : null, ...l, eindpakket.spraak ? "spraak (wav)" : null].filter(Boolean).join(" · ") || "niets"; e.append(p); box.append(e);
+  }
+  $("acties").style.display = uitkomsten.some((u) => u?.ok) ? "" : "none";
+  if (nieuwste != null) box.children[nieuwste]?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+}
+function kaart(i) {
+  const u = uitkomsten[i], m = byId[u.id], d = u.pakket, open = gekozenKraal === i;
+  const k = document.createElement("div"); k.className = "stap" + (u.ok ? "" : " mislukt") + (open ? " gekozen" : ""); k.style.setProperty("--c", kleur[m.groep]); k.dataset.i = i;
+  const kop = document.createElement("div"); kop.className = "kop";
+  kop.innerHTML = `<span class="nr">${i + 1}</span><b>${ICOON[m.groep]} ${m.naam}</b><span class="tijd">${u.ms ? `${(u.ms / 1000).toFixed(1)} s` : ""}</span>`;
+  kop.onclick = () => toonUitkomst(open ? null : i); k.append(kop);
+  const voeg = (titel, node) => { const el = document.createElement("div"); el.className = "deel"; if (titel) { const t = document.createElement("div"); t.className = "deeltitel"; t.textContent = titel; el.append(t); } el.append(node); k.append(el); };
+  const tabel = (rijen) => { const t = document.createElement("table"); for (const [a, b] of rijen) { const r = t.insertRow(); r.insertCell().textContent = a; r.insertCell().textContent = b; } return t; };
+  const tekstblok = (t, titel) => {
+    const p = document.createElement("div"); p.className = "tekstblok";
+    if (open || t.length <= KORT) p.innerHTML = md(t);
+    else { p.innerHTML = md(t.slice(0, KORT).replace(/\s+\S*$/, "")) + "… "; const b = document.createElement("button"); b.className = "meer"; b.textContent = `toon alles (${telWoorden(t)} woorden)`; b.onclick = () => toonUitkomst(i); p.append(b); }
+    voeg(titel, p);
+  };
+  if (!u.ok) { const p = document.createElement("p"); p.textContent = u.samenvatting; voeg("", p); return k; }
+  if (u.kreeg) { const p = document.createElement("div"); p.className = "kreeg"; p.textContent = `Kreeg: ${u.kreeg}`; k.append(p); }
+  if (d.overgeslagen) { const p = document.createElement("p"); p.textContent = `Overgeslagen: ${d.overgeslagen}.`; voeg("", p); }
+  if (d.beoordeling) tekstblok(d.beoordeling, "Beoordeling");
+  if (d.taal) voeg("", tabel([["Taal", d.taal]]));
   if (d.onderwerpen) voeg("Onderwerpen", tabel(d.onderwerpen.map((t) => [t.name, `${Math.round(t.score * 100)} %`])));
+  if (d.pgg) voeg(`Persoonsgegevens (${d.pgg.length})`, tabel((open ? d.pgg : d.pgg.slice(0, 5)).map((x) => [x.label, x.placeholder ?? x.original ?? ""]).concat(!open && d.pgg.length > 5 ? [["…", `en nog ${d.pgg.length - 5}`]] : [])));
   if (d.tags) voeg("Trefwoorden", tabel([["", d.tags.join(", ")]]));
   if (d.sprekers) voeg("Sprekers", tabel([["Aantal", d.sprekerAantal], ["Beurten", d.sprekers.length]]));
-  if (d.taal) voeg("Taal", tabel([["", d.taal]]));
   if (d.nsfw != null) voeg("Geschikt om te delen?", tabel([["Oordeel", d.nsfw ? "liever niet" : "ja"], ["Score", `${Math.round(d.nsfwScore * 100)} %`]]));
-  if (d.origineel) { const det = document.createElement("details"); det.innerHTML = `<summary>Origineel (blijft bij deze kraal)</summary>`; const p = document.createElement("div"); p.className = "tekstblok"; p.innerHTML = md(d.origineel); det.append(p); voeg("", det); }
-  $("acties").style.display = "";
+  if (d.tekst != null && m.out.includes("tekst")) tekstblok(d.tekst, `${m.id === "redact" ? "Gemaskeerde tekst" : "Nieuwe tekst"}${d.delen > 1 ? ` · gemaakt in ${d.delen} delen` : ""}`);
+  if (d.spraak) { u.spraakUrl ??= URL.createObjectURL(d.spraak); const a = document.createElement("audio"); a.controls = true; a.src = u.spraakUrl; voeg("Spraak", a); }
+  if (open && d.origineel) { const det = document.createElement("details"); det.innerHTML = `<summary>Wat deze kraal binnenkreeg</summary>`; const p = document.createElement("div"); p.className = "tekstblok"; p.innerHTML = md(d.origineel); det.append(p); voeg("", det); }
+  if (u.door) { const p = document.createElement("div"); p.className = "door" + (u.nieuw ? " nieuw" : ""); p.textContent = `Geeft door: ${u.door}${u.labels?.length ? ` · labels: ${u.labels.join(", ")}` : ""}`; k.append(p); }
+  return k;
+}
+/** Eén kraal uitklappen (of met null alles weer inklappen). */
+function toonUitkomst(i) {
+  if (i != null && !uitkomsten[i]) return;
+  gekozenKraal = i;
+  document.querySelectorAll(".bead").forEach((b, j) => b.classList.toggle("gekozen", j === i));
+  tekenLogboek(i);
 }
 
 const basisnaam = () => (invoer.file?.name ?? "tekst").replace(/\.[^.]+$/, "");
@@ -216,12 +271,14 @@ function verslagMd(zip = null, kort = false) {
   uitkomsten.forEach((u, i) => {
     if (!u) return; const m = byId[u.id], d = u.pakket, nr = String(i + 1).padStart(2, "0");
     verslag.push(`## ${nr} ${m.naam} — ${u.samenvatting}`, "");
+    if (u.kreeg) verslag.push(`Kreeg: ${u.kreeg}`, "");
     if (d.tekst != null && m.out.includes("tekst")) { zip?.file(`${nr}-${m.id}.md`, d.tekst); verslag.push(kort && d.tekst.length > 1500 ? d.tekst.slice(0, 1500) + "…" : d.tekst, ""); }
     if (d.beoordeling) { zip?.file(`${nr}-${m.id}.md`, d.beoordeling); verslag.push(d.beoordeling, ""); }
     if (d.pgg?.length) verslag.push("| Persoonsgegeven | Vervangen door |", "|---|---|", ...d.pgg.map((x) => `| ${x.label} | ${x.placeholder ?? ""} |`), "");
     if (d.onderwerpen?.length) verslag.push("| Onderwerp | Score |", "|---|---|", ...d.onderwerpen.map((t) => `| ${t.name} | ${Math.round(t.score * 100)} % |`), "");
     if (d.taal) verslag.push(`Taal: ${d.taal}`, "");
     if (d.spraak) zip?.file(`${nr}-${m.id}.wav`, d.spraak);
+    if (u.door) verslag.push(`Geeft door: ${u.door}`, "");
     const rest = Object.fromEntries(Object.entries(d).filter(([k]) => !["tekst", "spraak", "audio", "origineel", "beoordeling"].includes(k)));
     if (zip && Object.keys(rest).length) zip.file(`${nr}-${m.id}.json`, JSON.stringify(rest, null, 2));
   });
@@ -243,11 +300,11 @@ $("download").onclick = async () => {
   setTimeout(() => URL.revokeObjectURL(a.href), 60_000);
 };
 $("deel").onclick = async () => { const url = location.href; if (navigator.share) await navigator.share({ title: "Ketting", url }).catch(() => {}); else { await navigator.clipboard.writeText(url); setStatus("Link naar deze ketting gekopieerd."); } };
-$("wis").onclick = () => { ketting = []; uitkomsten = []; $("uitkomst").replaceChildren(); $("acties").style.display = "none"; tekenKetting(); bewaarHash(); };
+$("wis").onclick = () => { ketting = []; uitkomsten = []; eindpakket = null; tekenKetting(); tekenLogboek(); bewaarHash(); };
 
 // --- Instellingen --------------------------------------------------------------------------
 $("llm").value = llmInstelling.maat; $("llm").onchange = (e) => kiesLlm(e.target.value); llmInstelling.luister = (m) => { $("llm").value = m; };
-$("llm-info").textContent = `(${Object.entries(LLM_KEUZE).map(([k, v]) => `${k}: ${v.replace("-q4f16_1-MLC", "")}`).join(", ")}; ${navigator.gpu ? "WebGPU beschikbaar; op een telefoon is klein de veilige keuze" : "geen WebGPU: taalmodel werkt hier niet"})`;
+$("llm-info").textContent = `(${Object.entries(LLM_KEUZE).map(([k, v]) => `${k}: ${v.replace("-q4f16_1-MLC", "")}`).join(", ")}; ${navigator.gpu ? "WebGPU beschikbaar; klein is de standaard, normaal vraagt veel grafisch geheugen" : "geen WebGPU: taalmodel werkt hier niet"})`;
 
 // --- Start ------------------------------------------------------------------------------------
 $("rt").textContent = `${VERSION} · ${navigator.gpu ? "WebGPU beschikbaar" : "WASM (CPU)"}`;

@@ -77,6 +77,17 @@ progress { width: 100%; height: .4rem; display: none; margin-top: .6rem; }
 progress.on { display: block; }
 #status { font-size: .85rem; opacity: .85; min-height: 1.2em; margin-top: .5rem; }
 #uitkomst h3 { margin: 0 0 .5rem; font-size: 1rem; }
+.stap { border: 1px solid var(--line); border-left: .3rem solid var(--c, var(--line)); border-radius: .6rem; padding: .5rem .7rem; margin: .5rem 0; }
+.stap.gekozen { box-shadow: 0 0 0 2px var(--c, var(--line)); }
+.stap.mislukt { border-left-color: var(--fout); }
+.stap.eind { border-left-color: var(--ok); }
+.stap .kop { display: flex; align-items: center; gap: .5rem; cursor: pointer; }
+.stap .nr { flex: none; width: 1.5rem; height: 1.5rem; border-radius: 50%; display: grid; place-items: center; font-size: .78rem; background: color-mix(in srgb, var(--c, gray) 25%, transparent); }
+.stap .tijd { margin-left: auto; font-size: .78rem; opacity: .6; }
+.stap .kreeg, .stap .door { font-size: .8rem; opacity: .75; margin-top: .3rem; }
+.stap .door::before { content: "↓ "; }
+.stap .door.nieuw { opacity: 1; font-weight: 600; }
+.stap .meer { padding: 0 .4rem; font-size: .78rem; border-radius: .4rem; }
 .deel { margin: .5rem 0; }
 .deeltitel { font-size: .78rem; opacity: .65; margin-bottom: .2rem; }
 .tekstblok { padding: .6rem .8rem; border: 1px solid var(--line); border-radius: .6rem; max-height: 24rem; overflow: auto; font-size: .92rem; }

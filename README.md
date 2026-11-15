@@ -68,6 +68,7 @@ een gebruiker direct te zien welke versie die draaide.
 | 0.8.0 | Ketting `ketting/`: kralen slepen tot een klus, doorgeefpakket, twaalf verhalen; nieuwe kralen OCR (Tesseract), vertalen (Opus-MT), schrijven (Qwen3 via WebLLM), voorlezen (Piper) |
 | 0.8.1 | Tekstresultaten opslaan als Word (.docx), PDF of .md — in de ketting per kraal en als verslag, in Vergadering voor de notulen |
 | 0.8.2 | Taalmodel: standaard *klein* op telefoons (deviceMemory is in Chrome afgekapt op 8), keuze onthouden; als de GPU het model laat vallen (`mapAsync`/`unmapped`) wordt het model gelost, op *klein* overgeschakeld en één keer opnieuw geprobeerd; bestandsgrootte in kB onder 1 MB |
+| 0.9.0 | Ketting loopt logischer: de tekst is de rode draad, label-kralen (taal, onderwerp) laten hem ongemoeid; uitkomst is een logboek dat per kraal toont wat hij kreeg, opleverde en doorgeeft (tussenresultaten verschijnen tijdens het rijgen); taalmodel krijgt opdracht en inhoud gescheiden en geeft nooit meer de opdracht door, lange teksten gaan in delen (contextvenster 4096 tokens); vertalen slaat over als de taal al klopt; taalmodel standaard *klein* op elk toestel |
 
 Verandert `package-lock.json`, zet dan `npmDepsHash` in `default.nix` opnieuw
 (`nix run nixpkgs#prefetch-npm-deps -- package-lock.json`).
