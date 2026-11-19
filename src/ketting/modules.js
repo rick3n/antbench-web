@@ -287,14 +287,15 @@ export function kolomVan(blocks, breedte, hoogte) {
   if (stukken.length < 4) return null;
   const breedst = pct(stukken.map((s) => s.x1 - s.x0), 0.9), hoofd = stukken.filter((s) => s.x1 - s.x0 >= 0.5 * breedst);
   if (hoofd.length < 4 || hoofd.filter((s) => s.tweede >= 0.5 * (s.x1 - s.x0)).length > 0.3 * hoofd.length) return null;
-  const h = med(hoofd.map((s) => s.h)), marge = Math.round(0.6 * h);
-  const x0 = pct(hoofd.map((s) => s.x0), 0.1), x1 = pct(hoofd.map((s) => s.x1), 0.95);
+  const h = med(hoofd.map((s) => s.h)), marge = Math.round(0.6 * h), margeLinks = Math.round(0.35 * h);
+  // Links de mediaan: een stippellijn of vlek vlak naast de kolom plakt bij sommige regels aan het eerste woord en mag de rand niet oprekken.
+  const x0 = med(hoofd.map((s) => s.x0)), x1 = pct(hoofd.map((s) => s.x1), 0.95);
   // Korte regels (het eind van een alinea) horen er ook bij: alles wat binnen de kolom valt en aansluit op de regels erboven of eronder.
   const inKolom = stukken.filter((s) => s.x0 >= x0 - h && s.x1 <= x1 + h && s.x1 - s.x0 >= 2 * h).sort((a, b) => a.y0 - b.y0);
   let y0 = Math.min(...hoofd.map((s) => s.y0)), y1 = Math.max(...hoofd.map((s) => s.y1));
   for (const s of inKolom) if (s.y0 >= y1 - h && s.y0 - y1 < 1.5 * h) y1 = Math.max(y1, s.y1);
   for (const s of [...inKolom].reverse()) if (s.y1 <= y0 + h && y0 - s.y1 < 1.5 * h) y0 = Math.min(y0, s.y0);
-  const k = { x0: Math.max(0, x0 - marge), x1: Math.min(breedte, x1 + marge), y0: Math.max(0, y0 - marge), y1: Math.min(hoogte, y1 + marge) };
+  const k = { x0: Math.max(0, x0 - margeLinks), x1: Math.min(breedte, x1 + marge), y0: Math.max(0, y0 - marge), y1: Math.min(hoogte, y1 + marge) };
   return (k.x1 - k.x0) > 0.9 * breedte && (k.y1 - k.y0) > 0.9 * hoogte ? null : k;
 }
 /**
@@ -311,17 +312,20 @@ export function opschonen(blocks) {
     while (w.length && rand(w[w.length - 1])) w = w.slice(0, -1);
     if (!w.some((x) => /[A-Za-zÀ-ÿ]{3,}/.test(x.text) && x.confidence >= 30)) continue;
     over += w.length;
-    const tekst = w.map((x) => x.text.replace(/^_+|_+$/g, "")).filter(Boolean).join(" ").replace(/\s+([,.;:!?])/g, "$1").replace(/^[‚,;:._|'`]+\s*/, "");
-    regels.push({ tekst, x0: w[0].bbox.x0, x1: w[w.length - 1].bbox.x1, h: med(w.map((x) => x.bbox.y1 - x.bbox.y0)) });
+    const tekst = w.map((x) => x.text.replace(/^_+|_+$/g, "")).filter(Boolean).join(" ").replace(/\s+([,.;:!?])/g, "$1").replace(/^[‚,;:._|'`]+\s*/, "").replace(/[‐‑–—¬]$/, "-").trim();
+    regels.push({ tekst, zeker: w[0].confidence >= 60, x0: w[0].bbox.x0, x1: w[w.length - 1].bbox.x1, h: med(w.map((x) => x.bbox.y1 - x.bbox.y0)) });
   }
   if (!regels.length) return { tekst: "", weggelaten: totaal };
   // Alinea's: Tesseract.js geeft elke regel als eigen alinea, dus zelf bepalen. Een nieuwe alinea
   // begint met een inspringing, of na een korte regel die op een punt eindigt.
-  const links = med(regels.map((r) => r.x0)), rechts = pct(regels.map((r) => r.x1), 0.9), h = med(regels.map((r) => r.h));
+  const rechts = pct(regels.map((r) => r.x1), 0.9), breed = rechts - med(regels.map((r) => r.x0)), h = med(regels.map((r) => r.h));
   const uit = [];
   regels.forEach((r, i) => {
     const vorige = regels[i - 1];
-    const nieuw = !vorige || r.x0 - links > 0.8 * h || (rechts - vorige.x1 > 0.25 * (rechts - links) && /[.!?”"]$/.test(vorige.tekst));
+    // Inspringing meten tegen de regels eromheen, niet tegen de hele kolom: op een scheve foto loopt de linkerkant weg.
+    const buren = regels.slice(Math.max(0, i - 3), i + 4).filter((x) => x !== r).map((x) => x.x0), links = buren.length ? med(buren) : r.x0;
+    const kop = r.h > 1.6 * h || (vorige && vorige.h > 1.6 * h);   // een kop is duidelijk groter gezet
+    const nieuw = !vorige || kop || (r.zeker && r.x0 - links > 0.8 * h) || (rechts - vorige.x1 > 0.25 * breed && /[.!?”"]$/.test(vorige.tekst));
     if (nieuw) uit.push(r.tekst);
     else { const a = uit[uit.length - 1]; uit[uit.length - 1] = /[A-Za-zÀ-ÿ]-$/.test(a) && /^[a-zà-ÿ]/.test(r.tekst) ? a.slice(0, -1) + r.tekst : `${a} ${r.tekst}`; }
   });
