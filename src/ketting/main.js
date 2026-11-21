@@ -3,11 +3,12 @@
 import "./style.css";
 import JSZip from "jszip";
 import { $, BASE, VERSION, setStatus, setProgress, netSummary } from "../ui.js";
-import { MODULES, GROEPEN, RECEPTEN, SLEUTELS, byId, startpakket, llmInstelling, kiesLlm, LLM_KEUZE } from "./modules.js";
+import { MODULES, GROEPEN, RECEPTEN, SLEUTELS, byId, startpakket, llmInstelling, kiesLlm, LLM_KEUZE, claudeInstelling, zetClaude, CLAUDE_MODELLEN, VOORBEELD_SJABLOON } from "./modules.js";
+import { fileToText } from "../engine.js";
 import { fmt, grootte } from "../engine.js";
 import { bewaar } from "../export.js";
 
-const ICOON = { lezen: "📄", luisteren: "🎙️", kijken: "📷", begrijpen: "🔍", schrijven: "✍️", vertalen: "🌐", spreken: "🔊", samen: "🤝" };
+const ICOON = { lezen: "📄", luisteren: "🎙️", kijken: "📷", begrijpen: "🔍", schrijven: "✍️", vertalen: "🌐", spreken: "🔊", samen: "🤝", buiten: "☁️" };
 const kleur = Object.fromEntries(GROEPEN.map(([id, , c]) => [id, c]));
 
 let ketting = [];            // module-ids in volgorde
@@ -69,6 +70,7 @@ function tekenKetting() {
   });
   const eind = document.createElement("div"); eind.className = "eindkraal"; eind.innerHTML = `<span class="bol">🎁</span><span class="naam">uitkomst</span>`; lane.append(eind);
   $("vraag").style.display = ketting.some((id) => byId[id].vraag) ? "" : "none";
+  $("claude-paneel").style.display = ketting.some((id) => byId[id].extern) ? "" : "none";
   $("go").disabled = !ketting.length || !start.size || bezig;
   $("leeg").style.display = ketting.length ? "none" : "";
   $("aantal").textContent = ketting.length ? `${ketting.length} ${ketting.length === 1 ? "kraal" : "kralen"}` : "";
@@ -116,6 +118,28 @@ function zetBestand(f, label) {
   uitkomsten = []; tekenKetting();
 }
 $("vraag").oninput = () => { invoer.vraag = $("vraag").value; };
+
+// --- Verslag door Claude: instellingen (alles in localStorage op dit toestel) en de controle vóór versturen
+for (const [id, m] of Object.entries(CLAUDE_MODELLEN)) $("claude-model").add(new Option(m.naam, id));
+const claudeInfo = () => { const m = CLAUDE_MODELLEN[claudeInstelling.model]; $("claude-info").textContent = `${m.naam}: $${m.in} per miljoen tokens invoer, $${m.uit} uitvoer; ${m.bewaring} door Anthropic. ${claudeInstelling.sleutel ? "Sleutel staat op dit toestel." : "Nog geen sleutel ingevoerd."}`; };
+$("claude-sleutel").value = claudeInstelling.sleutel; $("claude-model").value = claudeInstelling.model;
+$("claude-context").value = claudeInstelling.context; $("claude-sjabloon").value = claudeInstelling.sjabloon; claudeInfo();
+$("claude-sleutel").oninput = (e) => { zetClaude("sleutel", e.target.value.trim()); claudeInfo(); };
+$("claude-wis").onclick = () => { zetClaude("sleutel", ""); $("claude-sleutel").value = ""; claudeInfo(); };
+$("claude-model").onchange = (e) => { zetClaude("model", e.target.value); claudeInfo(); };
+$("claude-context").oninput = (e) => zetClaude("context", e.target.value);
+$("claude-sjabloon").oninput = (e) => zetClaude("sjabloon", e.target.value);
+$("claude-sjabloon-bestand").onclick = () => $("claude-sjabloon-file").click();
+$("claude-sjabloon-file").onchange = async (e) => { const f = e.target.files[0]; if (!f) return; const t = await fileToText(f); $("claude-sjabloon").value = t; zetClaude("sjabloon", t); e.target.value = ""; };
+$("claude-sjabloon-voorbeeld").onclick = () => { $("claude-sjabloon").value = VOORBEELD_SJABLOON; zetClaude("sjabloon", VOORBEELD_SJABLOON); };
+claudeInstelling.bevestig = ({ tekst, model, gemaskeerd, aantalPgg }) => new Promise((klaar) => {
+  const d = $("claude-dialoog"), woorden = tekst.split(/\s+/).filter(Boolean).length;
+  $("claude-dialoog-info").innerHTML = `${woorden} woorden naar <b>${model.naam}</b> (${model.bewaring}). ` + (gemaskeerd ? `Er zijn ${aantalPgg} persoonsgegevens gemaskeerd; kijk of er nog namen of nummers in staan die niet weg mogen.` : `<b class="waarschuwing">Let op: deze tekst is niet gemaskeerd.</b> Zet <i>Persoonsgegevens maskeren</i> vóór deze kraal als er namen in staan.`) + (claudeInstelling.context.trim() ? " De projectcontext en het sjabloon gaan ook mee." : " Het sjabloon gaat ook mee.");
+  $("claude-dialoog-tekst").textContent = tekst;
+  const sluit = (ja) => { d.close(); $("claude-stuur").onclick = $("claude-stop").onclick = d.oncancel = null; klaar(ja); };
+  $("claude-stuur").onclick = () => sluit(true); $("claude-stop").onclick = () => sluit(false); d.oncancel = () => sluit(false);
+  d.showModal();
+});
 $("pick").onclick = () => $("file").click();
 $("file").onchange = (e) => { const f = e.target.files?.[0]; if (f) zetBestand(f, f.name); e.target.value = ""; };
 $("tekst").oninput = () => { invoer.tekst = $("tekst").value; if (invoer.tekst.trim()) { invoer.file = null; $("invoer-info").textContent = `${invoer.tekst.trim().split(/\s+/).length} woorden getypt`; $("preview-audio").style.display = $("preview-beeld").style.display = "none"; } uitkomsten = []; tekenKetting(); };
@@ -139,6 +163,8 @@ window.addEventListener("drop", (e) => { if (lane.contains(e.target)) return; e.
 const telWoorden = (t) => (t ?? "").split(/\s+/).filter(Boolean).length;
 function samenvatting(m, d, pakket) {
   if (d.passages) return `${d.passages.length} passages gevonden`;
+  if (d.claude) return `${telWoorden(d.tekst)} woorden · ${d.claude.model}`;
+  if (d.teruggezet != null) return `${d.teruggezet} plaatshouders ingevuld`;
   if (d.actiepunten != null) return d.actiepunten ? `${d.actiepunten} ${d.actiepunten === 1 ? "actiepunt" : "actiepunten"}` : "geen actiepunten gevonden";
   if (d.zekerheid != null) return `${telWoorden(d.tekst)} woorden · ${d.zekerheid} % zeker`;
   if (d.overgeslagen) return `overgeslagen: ${d.overgeslagen}`;
@@ -192,9 +218,23 @@ $("go").onclick = async () => {
 };
 
 // --- Uitkomst ----------------------------------------------------------------------------
+const esc = (t) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const inregel = (t) => esc(t).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/\[[A-Z_]+_\d+\]/g, "<mark>$&</mark>");
+/** Onze lichte markdown als HTML: koppen, lijsten, tabellen, vet en gemarkeerde plaatshouders. */
 function md(t) {
-  const esc = (s) => s.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
-  return esc(t).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/\[([A-Z_]+_\d+)\]/g, "<mark>[$1]</mark>").replace(/\n/g, "<br>");
+  const uit = []; let tabel = null, lijst = false;
+  const sluit = () => { if (tabel) { uit.push(`<table class="mdtabel">${tabel.join("")}</table>`); tabel = null; } if (lijst) { uit.push("</ul>"); lijst = false; } };
+  for (const raw of t.split("\n")) {
+    const r = raw.trimEnd();
+    if (/^\|.*\|$/.test(r)) { if (lijst) sluit(); if (/^\|\s*:?-{2,}/.test(r)) continue; const c = r.slice(1, -1).split("|").map((x) => inregel(x.trim())); (tabel ??= []).push(`<tr>${c.map((x) => (tabel?.length ? `<td>${x}</td>` : `<th>${x}</th>`)).join("")}</tr>`); continue; }
+    if (/^[-*•] /.test(r)) { if (tabel) sluit(); if (!lijst) { uit.push("<ul>"); lijst = true; } uit.push(`<li>${inregel(r.slice(2))}</li>`); continue; }
+    sluit();
+    const k = /^(#{1,3}) (.+)$/.exec(r);
+    if (k) uit.push(`<div class="mdkop k${k[1].length}">${inregel(k[2])}</div>`);
+    else uit.push(r.trim() ? `<div>${inregel(r)}</div>` : `<div class="wit"></div>`);
+  }
+  sluit();
+  return uit.join("");
 }
 /** Eén onderdeel van het pakket in woorden: "tekst (412 woorden)". */
 function beschrijf(k, p) {
@@ -209,6 +249,8 @@ function labels(p) {
   if (p.taal) l.push(`taal: ${p.taal}`);
   if (p.onderwerpen?.length) l.push(`onderwerp: ${p.onderwerpen[0].name}`);
   if (p.pgg) l.push(`${p.pgg.length} persoonsgegevens gemaskeerd`);
+  if (p.claude) l.push("verslag door Claude");
+  if (p.teruggezet != null) l.push("namen teruggezet");
   if (p.sprekerAantal) l.push(`${p.sprekerAantal} sprekers`);
   if (p.tags?.length) l.push(`${p.tags.length} trefwoorden`);
   if (p.nsfw != null) l.push(p.nsfw ? "delen: liever niet" : "delen: ok");
@@ -258,6 +300,8 @@ function kaart(i) {
   if (d.passages) { voeg(`Gevonden passages, beste eerst · ${d.zoekmodel}`, tabel(d.passages.map((x, j) => [`[${j + 1}] passage ${x.nr} van ${x.van} · ${Math.round(x.score * 100)} %`, open ? x.tekst : x.tekst.slice(0, 160).replace(/\s+\S*$/, "") + (x.tekst.length > 160 ? "…" : "")]))); }
   else if (d.tekst != null && m.out.includes("tekst")) tekstblok(d.tekst, `${m.id === "redact" ? "Gemaskeerde tekst" : "Nieuwe tekst"}${d.delen > 1 ? ` · gemaakt in ${d.delen} delen` : ""}`);
   if (d.spraak) { u.spraakUrl ??= URL.createObjectURL(d.spraak); const a = document.createElement("audio"); a.controls = true; a.src = u.spraakUrl; voeg("Spraak", a); }
+  if (d.claude) { const w = document.createElement("div"); w.className = "kreeg"; w.textContent = `${d.claude.model} · ${d.claude.tin.toLocaleString("nl")} tokens in, ${d.claude.tuit.toLocaleString("nl")} uit · ongeveer $${d.claude.dollar.toFixed(d.claude.dollar < 0.1 ? 3 : 2)} · ${d.claude.bewaring} door Anthropic${d.claude.afgekapt ? " · het antwoord is afgekapt" : ""}`; k.append(w); }
+  if (d.teruggezet != null) { const w = document.createElement("div"); w.className = "kreeg"; w.textContent = `${d.teruggezet} plaatshouders weer ingevuld, op dit toestel.${d.nietTerug ? ` ${d.nietTerug} plaatshouders staan er nog: die kwamen niet uit de maskering.` : ""}`; k.append(w); }
   if (d.uitgesneden || d.weggelaten) { const w = document.createElement("div"); w.className = "kreeg"; w.textContent = [d.uitgesneden ? "Alleen het tekstblok gelezen; wat eromheen stond is weggelaten." : "", d.weggelaten ? `${d.weggelaten} losse tekens aan de rand weggelaten.` : ""].filter(Boolean).join(" "); k.append(w); }
   if (open && d.ruw && (d.uitgesneden || d.weggelaten)) { const det = document.createElement("details"); det.innerHTML = `<summary>Wat de OCR op de hele foto las</summary>`; const p = document.createElement("div"); p.className = "tekstblok"; p.innerHTML = md(d.ruw); det.append(p); voeg("", det); }
   if (open && d.origineel) { const det = document.createElement("details"); det.innerHTML = `<summary>Wat deze kraal binnenkreeg</summary>`; const p = document.createElement("div"); p.className = "tekstblok"; p.innerHTML = md(d.origineel); det.append(p); voeg("", det); }

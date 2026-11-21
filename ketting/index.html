@@ -9,7 +9,7 @@
 </head>
 <body>
   <h1>Ketting</h1>
-  <p class="sub">Rijg kralen tot een klus. De tekst loopt als rode draad door de ketting: sommige kralen maken er een nieuwe tekst van (samenvatten, vertalen, maskeren), andere plakken er alleen een label op (taal, onderwerp) en laten de tekst ongemoeid. Alles op dit toestel, niets gaat naar een server. <span id="net" class="net">● online</span></p>
+  <p class="sub">Rijg kralen tot een klus. De tekst loopt als rode draad door de ketting: sommige kralen maken er een nieuwe tekst van (samenvatten, vertalen, maskeren), andere plakken er alleen een label op (taal, onderwerp) en laten de tekst ongemoeid. Alles op dit toestel, niets gaat naar een server, behalve als je zelf een kraal uit <em>Buiten het toestel</em> rijgt. <span id="net" class="net">● online</span></p>
   <p class="sub"><a href="../werkbank/">De twaalf klussen</a> · <a href="../">AntBench (losse modellen)</a></p>
 
   <div id="verhalen" title="Kant-en-klare kettingen: klik en de kralen liggen klaar"></div>
@@ -40,6 +40,23 @@
         </div>
         <textarea id="tekst" placeholder="…of typ of plak hier tekst"></textarea>
         <input id="vraag" type="text" placeholder="Vraag aan het document, bijvoorbeeld: wanneer moet de aanvraag binnen zijn?" style="display:none">
+        <div id="claude-paneel" style="display:none">
+          <div class="paneelkop">☁️ Verslag door Claude <small>deze kraal stuurt tekst naar Anthropic; de rest van de ketting blijft op dit toestel</small></div>
+          <div class="row">
+            <label class="small">Eigen API-sleutel <input id="claude-sleutel" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-…"></label>
+            <button id="claude-wis" title="Sleutel van dit toestel verwijderen">Wis sleutel</button>
+            <label class="small">Model <select id="claude-model"></select></label>
+          </div>
+          <div id="claude-info" class="small"></div>
+          <label class="small veld">Context van het project <span>blijft op dit toestel en gaat bij elk verslag mee</span>
+            <textarea id="claude-context" placeholder="Bijvoorbeeld: project Renovatie Kerkstraat, fase 2. Opdrachtgever is de gemeente. Vorige keer besloten: start in maart. Afkortingen: DO = definitief ontwerp."></textarea></label>
+          <label class="small veld">Sjabloon voor het verslag <span>Claude volgt deze opbouw</span>
+            <textarea id="claude-sjabloon"></textarea></label>
+          <div class="row">
+            <button id="claude-sjabloon-bestand">Sjabloon uit bestand…</button><input id="claude-sjabloon-file" type="file" accept=".txt,.md,.html,.docx" style="display:none">
+            <button id="claude-sjabloon-voorbeeld">Voorbeeld terugzetten</button>
+          </div>
+        </div>
         <audio id="preview-audio" controls style="display:none"></audio>
         <img id="preview-beeld" alt="" style="display:none">
         <div class="row">
@@ -64,9 +81,16 @@
     </div>
   </div>
 
+  <dialog id="claude-dialoog">
+    <h2>Dit gaat naar Anthropic</h2>
+    <p id="claude-dialoog-info"></p>
+    <pre id="claude-dialoog-tekst"></pre>
+    <div class="row"><button id="claude-stop">Niet versturen</button><button id="claude-stuur" class="primary">Versturen</button></div>
+  </dialog>
+
   <footer>
     <p><span id="rt"></span></p>
-    <p>Kralen van <a href="https://desertant.com">Desert Ant Labs</a> (Voz, Who, Ear, Clear, Eye, Moderator, Tongue, Gist, Redact) en open modellen: <a href="https://github.com/naptha/tesseract.js">Tesseract</a> (OCR), <a href="https://huggingface.co/Xenova/opus-mt-nl-en">Opus-MT</a> via Transformers.js (vertalen), <a href="https://github.com/mlc-ai/web-llm">Qwen3 via WebLLM</a> (schrijven), <a href="https://github.com/rhasspy/piper">Piper</a> (voorlezen), <a href="https://huggingface.co/google/embeddinggemma-2">EmbeddingGemma 2</a> (zoeken op betekenis). De kralen <em>willen/mogen/kunnen</em>, <em>checklist</em> en <em>zoeken met bronvermelding</em> zijn naar ideeën van Michiel Buisman (AI Usecase Explorer, AIbaarAI). Broncode: <a href="https://github.com/rick3n/antbench-web">github.com/rick3n/antbench-web</a>. Deze demo-site is tijdelijk, tot 1 december 2026.</p>
+    <p>Kralen van <a href="https://desertant.com">Desert Ant Labs</a> (Voz, Who, Ear, Clear, Eye, Moderator, Tongue, Gist, Redact) en open modellen: <a href="https://github.com/naptha/tesseract.js">Tesseract</a> (OCR), <a href="https://huggingface.co/Xenova/opus-mt-nl-en">Opus-MT</a> via Transformers.js (vertalen), <a href="https://github.com/mlc-ai/web-llm">Qwen3 via WebLLM</a> (schrijven), <a href="https://github.com/rhasspy/piper">Piper</a> (voorlezen), <a href="https://huggingface.co/google/embeddinggemma-2">EmbeddingGemma 2</a> (zoeken op betekenis). De kraal <em>Verslag door Claude</em> gebruikt de API van <a href="https://www.anthropic.com">Anthropic</a> met je eigen sleutel. De kralen <em>willen/mogen/kunnen</em>, <em>checklist</em> en <em>zoeken met bronvermelding</em> zijn naar ideeën van Michiel Buisman (AI Usecase Explorer, AIbaarAI). Broncode: <a href="https://github.com/rick3n/antbench-web">github.com/rick3n/antbench-web</a>. Deze demo-site is tijdelijk, tot 1 december 2026.</p>
   </footer>
 
   <script type="module" src="/src/ketting/main.js"></script>

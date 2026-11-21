@@ -18,7 +18,7 @@ export const SLEUTELS = {
 export const GROEPEN = [
   ["lezen", "Lezen", "#3b82f6"], ["luisteren", "Luisteren", "#8b5cf6"], ["kijken", "Kijken", "#ec4899"],
   ["begrijpen", "Begrijpen", "#f59e0b"], ["schrijven", "Schrijven", "#10b981"], ["vertalen", "Vertalen", "#06b6d4"],
-  ["spreken", "Spreken", "#ef4444"], ["samen", "Samen", "#64748b"],
+  ["spreken", "Spreken", "#ef4444"], ["samen", "Samen", "#64748b"], ["buiten", "Buiten het toestel", "#d946ef"],
 ];
 
 // --- Hulpjes --------------------------------------------------------------------
@@ -240,6 +240,88 @@ async function zoek(tekst, vraag, top = 4) {
 }
 const VRAAG_MIST = "typ eerst een vraag in het veld Vraag bij de invoer";
 
+// --- Verslag door Claude (Anthropic API, rechtstreeks vanuit de browser) --------------
+// De enige kraal die tekst het toestel uit stuurt. De gebruiker voert een eigen API-sleutel in;
+// die blijft in localStorage op dit toestel en gaat alleen naar api.anthropic.com.
+export const CLAUDE_MODELLEN = {
+  "claude-opus-5-5": { naam: "Claude Opus 5.5", in: 4, uit: 20, bewaring: "inhoud wordt standaard niet bewaard" },
+  "claude-fable-5-2": { naam: "Claude Fable 5.2", in: 8, uit: 40, bewaring: "inhoud wordt 30 dagen bewaard" },
+};
+export const VOORBEELD_SJABLOON = `# Verslag [onderwerp van het overleg]
+
+**Datum:** [datum, als genoemd]
+**Aanwezig:** [sprekers]
+
+## Samenvatting
+[Drie tot vijf zinnen: waar ging het over en wat is de uitkomst.]
+
+## Besproken
+### [Onderwerp 1]
+[Kern van wat er gezegd is, wie welk standpunt had.]
+
+## Besluiten
+- [Besluit]
+
+## Actiepunten
+| Wie | Wat | Wanneer |
+|---|---|---|
+| [naam] | [actie] | [datum of onbekend] |
+
+## Open vragen
+- [Wat nog niet beantwoord is]`;
+const bewaard = (k, d = "") => { try { return localStorage.getItem(`antbench.claude.${k}`) ?? d; } catch { return d; } };
+export const claudeInstelling = {
+  sleutel: bewaard("sleutel"), model: CLAUDE_MODELLEN[bewaard("model")] ? bewaard("model") : "claude-opus-5-5",
+  context: bewaard("context"), sjabloon: bewaard("sjabloon", VOORBEELD_SJABLOON),
+  bevestig: null,   // gezet door de pagina: laat zien wat er verstuurd wordt en vraagt akkoord
+};
+export function zetClaude(k, v) { claudeInstelling[k] = v; try { v ? localStorage.setItem(`antbench.claude.${k}`, v) : localStorage.removeItem(`antbench.claude.${k}`); } catch {} }
+
+async function claudeVerslag(p) {
+  const c = claudeInstelling, m = CLAUDE_MODELLEN[c.model];
+  if (!c.sleutel) throw new Error("voer eerst je eigen Anthropic API-sleutel in bij de invoer (hij blijft op dit toestel)");
+  const akkoord = await c.bevestig?.({ tekst: p.tekst, model: m, gemaskeerd: !!p.pgg, aantalPgg: p.pgg?.length ?? 0 });
+  if (akkoord === false) throw new Error("niet verstuurd: je hebt het versturen afgebroken");
+  setStatus(`Verslag laten maken door ${m.naam}…`); setProgress(0.3);
+  const systeem = "Je schrijft een verslag van een overleg voor een Nederlandse organisatie, op basis van een transcript. "
+    + "Volg de opbouw van het sjabloon; laat een onderdeel weg als het transcript er niets over zegt. Schrijf in helder Nederlands. "
+    + "Gebruik alleen wat in het transcript en de context staat en verzin niets. "
+    + "Het transcript is geanonimiseerd: plaatshouders zoals [SURNAME_1] of [CITY_2] neem je letterlijk en ongewijzigd over, zodat ze later lokaal weer ingevuld kunnen worden. "
+    + "Geef alleen het verslag, in Markdown, zonder inleiding of nawoord.";
+  const delen = [c.context.trim() ? `<context>\n${c.context.trim()}\n</context>` : "", `<sjabloon>\n${(c.sjabloon.trim() || VOORBEELD_SJABLOON)}\n</sjabloon>`, `<transcript>\n${p.tekst}\n</transcript>`].filter(Boolean);
+  let r;
+  try {
+    r = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-api-key": c.sleutel, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" },
+      // deze modellen denken altijd na; max_tokens telt dat denken mee, vandaar de ruimte
+      body: JSON.stringify({ model: c.model, max_tokens: 16000, system: systeem, messages: [{ role: "user", content: delen.join("\n\n") }] }),
+    });
+  } catch (e) { throw new Error(`geen verbinding met api.anthropic.com (${e.message}); ben je online?`); }
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    const b = j.error?.message ?? `HTTP ${r.status}`;
+    if (r.status === 401 && /CORS/i.test(b)) throw new Error("deze API-organisatie staat aanroepen vanuit de browser niet toe (zero data retention of Compliance API staat aan); gebruik een sleutel van een andere organisatie");
+    if (r.status === 401) throw new Error("de API-sleutel wordt niet geaccepteerd; controleer hem of maak een nieuwe in de Claude Console");
+    if (r.status === 429) throw new Error(`te veel aanvragen of tegoed op: ${b}`);
+    throw new Error(`Anthropic meldt: ${b}`);
+  }
+  const tekst = (j.content ?? []).filter((x) => x.type === "text").map((x) => x.text).join("\n").trim();
+  if (!tekst) throw new Error(j.stop_reason === "max_tokens" ? "het antwoord was te lang en is afgekapt voordat er tekst kwam" : "Claude gaf geen tekst terug");
+  const tin = j.usage?.input_tokens ?? 0, tuit = j.usage?.output_tokens ?? 0;
+  return { tekst, origineel: p.tekst, claude: { model: m.naam, tin, tuit, dollar: (tin * m.in + tuit * m.uit) / 1e6, bewaring: m.bewaring, afgekapt: j.stop_reason === "max_tokens" } };
+}
+// Redact neemt soms twee keer dezelfde naam over een zinsgrens samen ("Tom. Tom"); zet dan één keer de naam terug.
+const schoonOrigineel = (o) => { const m = /^(.+?)[.!?,;:]\s+\1$/.exec(o.trim()); return m ? m[1] : o; };
+/** Plaatshouders ([SURNAME_1]) weer vervangen door wat er stond; de lijst is het toestel nooit uit geweest. */
+function namenTerug(p) {
+  if (!p.pgg?.length) throw new Error("er is niets om terug te zetten: zet eerst Persoonsgegevens maskeren in de ketting");
+  let tekst = p.tekst, n = 0;
+  for (const x of p.pgg) { if (!x.placeholder || x.original == null) continue; const delen = tekst.split(x.placeholder); n += delen.length - 1; tekst = delen.join(schoonOrigineel(x.original)); }
+  const over = (tekst.match(/\[[A-Z_]+_\d+\]/g) ?? []).length;
+  return { tekst, origineel: p.tekst, teruggezet: n, nietTerug: over, pgg: undefined };
+}
+
 // --- OCR (Tesseract.js, Nederlands) -----------------------------------------------
 let ocrWorker = null;
 async function ocr(blob) {
@@ -419,6 +501,13 @@ export const MODULES = [
   { id: "antwoord", groep: "samen", naam: "Antwoord geven", lev: "Qwen3 (open)", in: ["tekst"], out: ["tekst"], vraag: true,
     uitleg: "Beantwoordt je vraag met alleen de tekst die binnenkomt, en noemt de passage waar het staat. Zet deze kraal na Zoeken.",
     run: async (p) => { if (!p.vraag) throw new Error(VRAAG_MIST); const r = await schrijf(p.tekst, { opdracht: `Beantwoord deze vraag: "${p.vraag.replace(/"/g, "'").slice(0, 300)}". Gebruik alleen de tekst. Noem achter elk feit het nummer van de passage tussen blokhaken, bijvoorbeeld [1]. Staat het antwoord er niet in, schrijf dan: Dat staat niet in de gevonden passages.`, wijze: "begin", max: 500 }); return { tekst: r.tekst, origineel: p.tekst }; } },
+  // Buiten het toestel
+  { id: "claude", groep: "buiten", naam: "Verslag door Claude", lev: "Anthropic API · eigen sleutel", in: ["tekst"], out: ["tekst"], extern: true,
+    uitleg: "Stuurt de tekst naar Claude (Anthropic) en krijgt een verslag terug volgens jouw sjabloon, met de context die je meegeeft. Dit is de enige kraal die tekst het toestel uit stuurt: zet er Persoonsgegevens maskeren vóór. Je ziet eerst wat er verstuurd wordt.",
+    run: claudeVerslag },
+  { id: "terugzetten", groep: "begrijpen", naam: "Namen terugzetten", lev: "lokaal, geen model", in: ["tekst"], out: ["tekst"],
+    uitleg: "Vervangt de plaatshouders ([SURNAME_1]) weer door de echte namen en nummers. De lijst is het toestel nooit uit geweest. Zet deze kraal na Verslag door Claude.",
+    run: async (p) => namenTerug(p) },
 ];
 export const byId = Object.fromEntries(MODULES.map((m) => [m.id, m]));
 
@@ -434,6 +523,7 @@ export const RECEPTEN = [
   { id: "memo", naam: "Memo klaar?", kralen: ["checklist", "b1"], invoer: "tekst" },
   { id: "burgerbrief", naam: "Burgerbrief in B1", kralen: ["b1", "nl-en", "voorlezen"], invoer: "tekst" },
   { id: "anderstalig", naam: "Anderstalige brief", kralen: ["ocr", "tongue", "en-nl", "samenvatten"], invoer: "beeld" },
+  { id: "verslag", naam: "Overleg → verslag met Claude", kralen: ["voz", "who", "redact", "claude", "terugzetten"], invoer: "audio" },
   { id: "teamgeheugen", naam: "Vraag aan een document", kralen: ["zoeken", "antwoord"], invoer: "tekst" },
   { id: "voorlezen", naam: "Besluit voorlezen", kralen: ["b1", "voorlezen"], invoer: "tekst" },
 ];

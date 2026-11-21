@@ -120,6 +120,14 @@ doorgaat; anders gaat de tekst ongewijzigd door.
 |---|---|---|---|
 | **Voorlezen** | Piper | tekst → spraak (wav) | Een Nederlandse stem leest de tekst voor (de eerste 3000 tekens). |
 
+### ☁️ Buiten het toestel
+
+| Kraal | Model | Krijgt → geeft | Wat hij doet |
+|---|---|---|---|
+| **Verslag door Claude** | Claude Opus 5.5 of Fable 5.2, via de API van Anthropic met je eigen sleutel | tekst → tekst | De enige kraal die tekst het toestel uit stuurt. Claude maakt een verslag volgens jouw sjabloon, met de projectcontext die je meegeeft. Je ziet eerst precies wat er verstuurd wordt en moet dat goedkeuren. |
+
+Bij deze kraal hoort **Namen terugzetten** (groep Begrijpen, lokaal): die vult de plaatshouders in het verslag weer in met de echte namen. De lijst met namen is het toestel nooit uit geweest.
+
 ### 🤝 Samen
 
 | Kraal | Model | Krijgt → geeft | Wat hij doet |
@@ -147,6 +155,18 @@ zoekt.
 
 ![Zoeken: de best passende passages met hun plek en score](docs/img/zoeken.png)
 
+### Overleg → verslag met Claude
+
+Het verhaal *Overleg → verslag met Claude* rijgt: Transcriberen → Sprekers → Persoonsgegevens maskeren → Verslag door Claude → Namen terugzetten. Alleen de gemaskeerde tekst gaat naar Anthropic, en pas nadat je hem hebt gezien:
+
+![Controle vóór het versturen: de gemaskeerde tekst](docs/img/claude-controle.png)
+
+Het verslag komt terug met plaatshouders; de laatste kraal vult ze lokaal weer in. Daarna sla je het op als Word, PDF of Markdown.
+
+![Maskeren, verslag door Claude en namen terugzetten](docs/img/claude-verslag.png)
+
+Wat je instelt, blijft in de browser op je toestel: je API-sleutel, de modelkeuze, de projectcontext en het sjabloon. Er zit een voorbeeldsjabloon in; een eigen sjabloon kun je plakken of uit een bestand laden (txt, md, docx).
+
 ### Actiepunten
 
 Vaste regels in plaats van een taalmodel. De zin over het weer valt weg; de
@@ -156,7 +176,7 @@ toezeggingen blijven staan, met de spreker erbij.
 
 ## Kant-en-klare verhalen
 
-Bovenaan de ketting staan twaalf verhalen. Eén klik en de kralen liggen klaar.
+Bovenaan de ketting staan dertien verhalen. Eén klik en de kralen liggen klaar.
 
 | Verhaal | Kralen | Begint met |
 |---|---|---|
@@ -170,6 +190,7 @@ Bovenaan de ketting staan twaalf verhalen. Eén klik en de kralen liggen klaar.
 | Memo klaar? | Checklist → B1 | tekst |
 | Burgerbrief in B1 | B1 → Naar Engels → Voorlezen | tekst |
 | Anderstalige brief | Scan lezen → Taal → Naar Nederlands → Samenvatten | foto |
+| Overleg → verslag met Claude | Transcriberen → Sprekers → Maskeren → Verslag door Claude → Namen terugzetten | opname |
 | Vraag aan een document | Zoeken → Antwoord geven | tekst + vraag |
 | Besluit voorlezen | B1 → Voorlezen | tekst |
 
@@ -182,6 +203,7 @@ Schuingedrukte kralen bestaan nog niet; de ketting stopt daar.
 - **Modellen worden één keer opgehaald**, bij het eerste gebruik van een kraal
   (van Hugging Face en een paar andere bestandsservers), en blijven daarna in
   de modelcache van de browser.
+- **Eén uitzondering: de kraal *Verslag door Claude*.** Die stuurt de tekst die hij binnenkrijgt, de projectcontext en het sjabloon naar `api.anthropic.com`, met jouw eigen API-sleutel. Volgens de documentatie van Anthropic wordt API-invoer niet zonder toestemming gebruikt voor training; bij Opus 5.5 wordt de inhoud standaard niet bewaard, bij Fable 5.2 dertig dagen. De sleutel staat in de opslag van je browser: gebruik deze kraal niet op een gedeeld toestel, of wis de sleutel na afloop.
 - **Zelf nagaan kan.** Elke run toont een netwerkteller, en de *vliegtuigtest*
   op de AntBench-pagina laat je met de vliegtuigmodus aan bewijzen dat een
   model zonder netwerk werkt.
@@ -201,6 +223,8 @@ Schuingedrukte kralen bestaan nog niet; de ketting stopt daar.
 - **Onderwerpen kiest uit een vaste, Engelstalige lijst** en zit er bij
   ambtelijke teksten geregeld naast.
 - **Vertalen gaat zin voor zin** en kent geen context ("heer" wordt "Lord").
+- **Verslag door Claude is getest tegen een nagebootste API**, niet met een echte sleutel. Organisaties met zero data retention of de Compliance API kunnen de API niet vanuit een browser aanroepen; de kraal meldt dat dan.
+- **Maskeren is niet waterdicht.** Redact mist weleens een naam; daarom de controle vóór het versturen.
 - **Zoeken is getest op één Nederlands document** met twaalf vragen: de goede
   passage stond bovenaan bij 11 (EmbeddingGemma 2) en 9 (e5), en bij beide
   altijd in de top 3.
@@ -289,6 +313,7 @@ een gebruiker direct te zien welke versie die draaide.
 | 0.10.2 | Actiepunten werkt met vaste regels in plaats van het taalmodel (Qwen3-0.6B zei in een proef bij elke tekst "geen actiepunten" of verzon ze); Transcriberen deelt per spreker in als Sprekers al gedraaid heeft; taalmodel laadt de 32-bit-uitvoering als de GPU geen shader-f16 kan |
 | 0.10.3 | Scan lezen in twee stappen: eerst bepalen waar het tekstblok staat, dan alleen dat blok lezen (buurkolommen, randen en stippellijnen vallen weg); losse tekens aan de regelranden weg, afgebroken woorden weer heel, regels samengevoegd tot alinea's. Op een echte krantenfoto: van een kolom vol flarden naar lopende tekst met een handvol leesfouten |
 | 0.10.4 | Scan lezen: alinea's ook goed op een scheve foto (inspringing gemeten tegen de regels eromheen), koppen als eigen alinea, linkerrand van het tekstblok strakker zodat een stippellijn naast de kolom niet meekomt, afbreekstreepjes in alle vormen weggewerkt |
+| 0.11.0 | Nieuwe kraal *Verslag door Claude* (Anthropic API met eigen sleutel, keuze Opus 5.5 of Fable 5.2, projectcontext en sjabloon met voorbeeld, controle vóór versturen) en *Namen terugzetten* (lokaal); verhaal *Overleg → verslag met Claude*; koppen en tabellen worden in de uitkomst opgemaakt |
 
 Verandert `package-lock.json`, zet dan `npmDepsHash` in `default.nix` opnieuw
 (`nix run nixpkgs#prefetch-npm-deps -- package-lock.json`).
