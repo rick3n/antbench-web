@@ -7,11 +7,11 @@
 // Een kraal kleurt groen als alles wat hij nodig heeft op dat punt in de ketting
 // al aanwezig is, anders rood. Kralen met status "komt" bestaan nog niet.
 import { BASE, setProgress, setStatus } from "../ui.js";
-import { model, actions, decodeAudio, downsample, toWav, imageToPixels, voorOcr, fileToText, fmt } from "../engine.js";
+import { model, actions, decodeAudio, downsample, toWav, imageToPixels, voorOcr, fileToText, fmt, vervaagGezichten, TOXIC_NL } from "../engine.js";
 
 // --- Sleutels van het doorgeefpakket (voor uitleg en kleur) ---------------------
 export const SLEUTELS = {
-  tekst: "tekst", audio: "audio", beeld: "beeld", woorden: "woorden met tijd", sprekers: "sprekers",
+  tekst: "tekst", audio: "audio", beeld: "beeld", woorden: "woorden met tijd", sprekers: "sprekers", stopwoorden: "stopwoordjes", toon: "toon",
   taal: "taal", onderwerpen: "onderwerpen", pgg: "persoonsgegevens", tags: "trefwoorden", spraak: "spraak (wav)",
 };
 
@@ -446,10 +446,21 @@ export const MODULES = [
   { id: "ear", groep: "luisteren", naam: "Gesproken taal", lev: "Desert Ant Ear", in: ["audio"], out: ["taal"],
     uitleg: "Welke taal er gesproken wordt, uit de eerste halve minuut.",
     run: async (p) => { const r = await (await model("ear")).identify(p.audio.samples, p.audio.sampleRate); return { taal: r.language ?? "onbekend" }; } },
+  { id: "uhm", groep: "luisteren", naam: "Stopwoordjes", lev: "Desert Ant Uhm", in: ["audio"], out: ["stopwoorden"],
+    uitleg: "Telt de eh's en uhm's in een opname en geeft aan waar ze zitten. Een label erbij; audio en tekst gaan ongewijzigd door.",
+    run: async (p) => { const r = await actions.uhm({ audio: p.audio }); return { stopwoorden: r.fillers, stopDuur: r.audioDuration }; } },
   { id: "clear", groep: "luisteren", naam: "Opschonen", lev: "Desert Ant Clear", in: ["audio"], out: ["audio", "spraak"],
     uitleg: "Ruis en galm weg, niveau naar −16 LUFS. Voor mensen, niet vóór transcriberen (dat wordt er slechter van).",
     run: async (p) => { const r = await (await model("clear")).enhance(p.audio.samples, p.audio.sampleRate, { targetLUFS: -16, maxGainDB: 40 }); const a = downsample(r.samples, r.sampleRate, 16000); return { audio: { ...a, duration: p.audio.duration }, spraak: toWav(a.samples, a.sampleRate) }; } },
   // Kijken
+  { id: "gezichten", groep: "kijken", naam: "Gezichten vervagen", lev: "Desert Ant Face", in: ["beeld"], out: ["beeld"],
+    uitleg: "Zoekt gezichten in de foto en maakt ze onherkenbaar (grove blokken). De bewerkte foto gaat door naar de volgende kraal. Het model zoekt alleen wáár een gezicht zit; het herkent niet wie het is.",
+    run: async (p) => {
+      const g = await (await model("gezichten")).faces(p.beeld.pixels.canvas);
+      if (!g.length) return { gezichten: 0 };
+      const r = await vervaagGezichten(p.beeld.pixels.canvas, g);
+      return { gezichten: g.length, beeld: { blob: r.blob, pixels: await imageToPixels(r.blob) }, bewerktBeeld: r.blob };
+    } },
   { id: "eye", groep: "kijken", naam: "Foto beschrijven", lev: "Desert Ant Eye", in: ["beeld"], out: ["tags", "tekst"],
     uitleg: "Scène, trefwoorden, mensen, gezichten, dieren, kwaliteit. Levert een korte beschrijving als tekst door.",
     run: async (p) => { const r = await actions.eye({ pixels: p.beeld.pixels }); return { tags: r.tags ?? [], tekst: `Foto: ${r.kind ?? "onbekend"}; trefwoorden: ${(r.tags ?? []).slice(0, 10).join(", ")}; mensen: ${r.people ?? 0}, gezichten: ${r.faces ?? 0}.` }; } },
@@ -472,6 +483,12 @@ export const MODULES = [
   { id: "samenvatten", groep: "schrijven", naam: "Samenvatten", lev: "Qwen3 (open)", in: ["tekst"], out: ["tekst"],
     uitleg: "Korte samenvatting in het Nederlands. De samenvatting gaat door als tekst; het origineel blijft bij deze kraal. Lange teksten gaan in delen.",
     run: async (p) => { const r = await schrijf(p.tekst, { opdracht: "Vat de tekst samen in hooguit 8 zinnen. Alleen wat erin staat.", deel: "Vat dit deel van een langere tekst samen in hooguit 4 zinnen. Alleen wat erin staat." }); return { tekst: r.tekst, origineel: p.tekst, delen: r.delen }; } },
+  { id: "toxic", groep: "begrijpen", naam: "Haatdragende taal?", lev: "Desert Ant Toxic", in: ["tekst"], out: ["toon"],
+    uitleg: "Signaleert haatdragende, beledigende of bedreigende taal, in 35 talen. Een label erbij; de tekst zelf gaat ongewijzigd door. Bedoeld als eerste zeef, niet als oordeel.",
+    run: async (p) => { const r = await actions.toxic({ text: p.tekst }); return { toon: { letOp: r.isToxic, soort: r.content.map((k) => TOXIC_NL[k] ?? k),
+      // op wie het gericht is, telt alleen als er ook echt iets haatdragends gevonden is
+      doelwit: r.isToxic ? (r.targets ?? []).map((k) => TOXIC_NL[k] ?? k) : [],
+      scores: ["HATEFUL", "ABUSIVE", "THREAT"].map((k) => [TOXIC_NL[k], r.scores[k] ?? 0]) } }; } },
   { id: "actiepunten", groep: "begrijpen", naam: "Actiepunten", lev: "eigen regels (geen model)", in: ["tekst"], out: ["tekst"],
     uitleg: "Haalt de zinnen eruit waarin iets moet gebeuren, gevraagd, afgesproken of besloten wordt, met de spreker erbij als die bekend is. Vaste regels, geen taalmodel: het kleine taalmodel bleek hier onbetrouwbaar.",
     run: async (p) => { const r = actiezinnen(p.tekst); return { tekst: r.length ? r.map((x) => `- ${x.wie ? `${x.wie}: ` : ""}${x.zin}`).join("\n") : "Geen actiepunten gevonden.", actiepunten: r.length, origineel: p.tekst }; } },
@@ -517,7 +534,7 @@ export const RECEPTEN = [
   { id: "brief", naam: "Gescande brief", kralen: ["ocr", "redact", "gist", "samenvatten", "b1"], invoer: "beeld" },
   { id: "woo", naam: "Woo-stuk lakken", kralen: ["redact", "pgg-eigen", "gist"], invoer: "tekst" },
   { id: "inspraak", naam: "Inspraakreacties", kralen: ["redact", "gist", "samenvatten"], invoer: "tekst" },
-  { id: "inspectie", naam: "Inspectiefoto", kralen: ["eye", "moderator", "samenvatten"], invoer: "beeld" },
+  { id: "inspectie", naam: "Inspectiefoto", kralen: ["gezichten", "eye", "moderator", "samenvatten"], invoer: "beeld" },
   { id: "hoorzitting", naam: "Hoorzitting", kralen: ["voz", "who", "redact", "samenvatten"], invoer: "audio" },
   { id: "idee", naam: "AI-idee toetsen", kralen: ["vragenlijst", "checklist"], invoer: "tekst" },
   { id: "memo", naam: "Memo klaar?", kralen: ["checklist", "b1"], invoer: "tekst" },

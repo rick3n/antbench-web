@@ -1,6 +1,6 @@
 // Beeld-tabblad: foto uit camera of bestand → Eye (analyse) en Moderator (NSFW).
 import { $, run, showResult, table, setStatus } from "./ui.js";
-import { model, imageToPixels, moderation } from "./engine.js";
+import { model, imageToPixels, moderation, vervaagGezichten } from "./engine.js";
 
 const canvas = $("image-canvas"), ctx = canvas.getContext("2d");
 let pixels = null;          // { data, width, height } van de huidige foto
@@ -23,8 +23,15 @@ const actions = {
     for (const [k, v] of Object.entries(m.regions ?? {})) rows.push([k, v]);
     showResult(`NSFW: ${m.isNSFW ? "ja" : "nee"} (${(m.score * 100).toFixed(0)}%, drempel ${moderation.threshold})`, table(rows));
   },
+  gezichten: async () => {
+    const g = await (await model("gezichten")).faces(pixels.canvas);
+    if (!g.length) return showResult("Geen gezichten gevonden.");
+    const r = await vervaagGezichten(pixels.canvas, g);
+    ctx.drawImage(r.canvas, 0, 0);
+    showResult(`${g.length} ${g.length === 1 ? "gezicht" : "gezichten"} onherkenbaar gemaakt`, table([["Gezichten", g.length], ...g.slice(0, 20).map((x, i) => [`gezicht ${i + 1}`, x.confidence])]), r.blob, "antbench-gezichten-vervaagd.jpg");
+  },
 };
-const labels = { eye: "Eye (analyse)", moderator: "Moderator (NSFW)" };
+const labels = { eye: "Eye (analyse)", moderator: "Moderator (NSFW)", gezichten: "Face (gezichten vervagen)" };
 $("mod-threshold").onchange = (e) => { moderation.threshold = Number(e.target.value); };
 $("mod-topless").onchange = (e) => { moderation.policy = e.target.checked ? "allowTopless" : "standard"; };
 for (const b of document.querySelectorAll("#tab-beeld button.run"))
@@ -44,7 +51,7 @@ $("image-file").onchange = async (ev) => {
 async function setImage(file) {
   const px = await imageToPixels(file);
   canvas.width = px.width; canvas.height = px.height; ctx.drawImage(px.canvas, 0, 0);
-  pixels = { data: px.data, width: px.width, height: px.height };
+  pixels = { data: px.data, width: px.width, height: px.height, canvas: px.canvas };
   $("image-info").textContent = `${pixels.width}×${pixels.height}`;
 }
 

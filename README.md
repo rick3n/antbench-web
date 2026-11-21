@@ -81,11 +81,13 @@ doorgaat; anders gaat de tekst ongewijzigd door.
 | **Sprekers** | Desert Ant Who | audio → sprekers, tekst | Wie sprak wanneer. Is er al een transcript, dan wordt het per spreker ingedeeld. |
 | **Gesproken taal** | Desert Ant Ear | audio → taal (label) | Welke taal er gesproken wordt, uit de eerste halve minuut. |
 | **Opschonen** | Desert Ant Clear | audio → audio | Ruis en galm weg, volume gelijkgetrokken. Bedoeld om terug te luisteren. Niet vóór *Transcriberen* zetten: het transcript wordt er slechter van. |
+| **Stopwoordjes** | Desert Ant Uhm | audio → stopwoordjes (label) | Telt de eh's en uhm's in een opname en geeft aan waar ze zitten. |
 
 ### 📷 Kijken
 
 | Kraal | Model | Krijgt → geeft | Wat hij doet |
 |---|---|---|---|
+| **Gezichten vervagen** | Desert Ant Face (alleen de detector) | beeld → beeld | Zoekt gezichten en maakt ze onherkenbaar met grove blokken. De bewerkte foto gaat door naar de volgende kraal. Het model zoekt alleen waar een gezicht zit; het herkent niet wie het is. |
 | **Foto beschrijven** | Desert Ant Eye | beeld → trefwoorden, tekst | Scène, trefwoorden, mensen, dieren, kwaliteit. Geeft een korte beschrijving door als tekst. |
 | **Geschikt om te delen?** | Desert Ant Moderator | beeld → oordeel (label) | Schat in of een foto ongepast is. Een close-up met veel huid scoort al snel hoog. |
 
@@ -96,6 +98,7 @@ doorgaat; anders gaat de tekst ongewijzigd door.
 | **Taal van de tekst** | Desert Ant Tongue | tekst → taal (label) | Stelt de taal vast. |
 | **Onderwerpen** | Desert Ant Gist | tekst → onderwerp (label) | Waar de tekst over gaat, gekozen uit 36 vaste onderwerpen. |
 | **Persoonsgegevens maskeren** | Desert Ant Redact | tekst → tekst, lijst | Namen, adressen en nummers worden plaatshouders zoals `[SURNAME_1]`. De gemaskeerde tekst gaat door, zodat latere kralen de gegevens niet meer zien. |
+| **Haatdragende taal?** | Desert Ant Toxic | tekst → toon (label) | Signaleert haatdragende, beledigende of bedreigende taal, in 35 talen. Een eerste zeef, geen oordeel. |
 | **Actiepunten** | vaste regels, geen model | tekst → tekst | Haalt de zinnen eruit waarin iets moet gebeuren, gevraagd, afgesproken of besloten wordt, met de spreker erbij. |
 | *Eigen labels zoeken* | GLiNER | tekst → lijst | *Komt.* Zoeken op labels in gewone taal: BSN, kenteken, zaaknummer. |
 
@@ -184,7 +187,7 @@ Bovenaan de ketting staan dertien verhalen. Eén klik en de kralen liggen klaar.
 | Gescande brief | Scan lezen → Maskeren → Onderwerpen → Samenvatten → B1 | foto |
 | Woo-stuk lakken | Maskeren → *Eigen labels* → Onderwerpen | tekst |
 | Inspraakreacties | Maskeren → Onderwerpen → Samenvatten | tekst |
-| Inspectiefoto | Foto beschrijven → Geschikt om te delen? → Samenvatten | foto |
+| Inspectiefoto | Gezichten vervagen → Foto beschrijven → Geschikt om te delen? → Samenvatten | foto |
 | Hoorzitting | Transcriberen → Sprekers → Maskeren → Samenvatten | opname |
 | AI-idee toetsen | *Willen/mogen/kunnen* → Checklist | tekst |
 | Memo klaar? | Checklist → B1 | tekst |
@@ -220,6 +223,9 @@ Schuingedrukte kralen bestaan nog niet; de ketting stopt daar.
 - **Scan lezen maakt nog leesfouten** bij kleine of dicht gezette letters
   (woorden aan elkaar, "AI" als "Al"). Bij twee volwaardige kolommen naast
   elkaar wordt er niet uitgesneden.
+- **Stopwoordjes is alleen getest op opnames zonder stopwoordjes**: de kraal draait en telt nul; of hij een echte "eh" vindt, is hier niet gemeten.
+- **Gezichten vervagen is getest op één testfoto met twee gezichten.** Een gezicht dat het model mist, blijft herkenbaar; kijk de bewerkte foto na.
+- **Gezichtsherkenning (wie is dit) is bewust niet ingebouwd.** Het Face-model kan dat, maar het levert biometrische gegevens op.
 - **Onderwerpen kiest uit een vaste, Engelstalige lijst** en zit er bij
   ambtelijke teksten geregeld naast.
 - **Vertalen gaat zin voor zin** en kent geen context ("heer" wordt "Lord").
@@ -233,10 +239,10 @@ Schuingedrukte kralen bestaan nog niet; de ketting stopt daar.
 
 | Tabblad | Modellen | Invoer |
 |---|---|---|
-| Tekst | Redact (persoonsgegevens), Tongue (taal), Emo (emoji), Gist (onderwerpen) | typen, plakken, bestand (txt/md/html/docx), Delen-menu |
-| Audio | Voz (transcriptie), Who (sprekers), Ear (gesproken taal), Clear (opschonen) | microfoon, audio- of videobestand |
-| Beeld | Eye (analyse), Moderator | camera, foto |
-| Tekenen | Shapes (vormherkenning) | één haal op het canvas |
+| Tekst | Redact (persoonsgegevens), Tongue (taal), Emo (emoji), Gist (onderwerpen), Toxic (haatdragende taal) | typen, plakken, bestand (txt/md/html/docx), Delen-menu |
+| Audio | Voz (transcriptie), Who (sprekers), Ear (gesproken taal), Clear (opschonen), Uhm (stopwoordjes) | microfoon, audio- of videobestand |
+| Beeld | Eye (analyse), Moderator, Face (gezichten vervagen) | camera, foto |
+| Tekenen | Shapes (vormherkenning) | een of meer halen op het canvas; ook vinkje, kruis, plus, haak, zigzag en krabbel |
 | Vergadering | Voz → Who → Ear/Tongue/Gist/Redact als vaste keten | één opname → notulen (Word, PDF, .md, .srt), geredigeerde versie |
 | Project | alle bovenstaande, in één keer | veel bestanden tegelijk (of een map op desktop) |
 
@@ -275,7 +281,7 @@ Voor de uitrol op dev.3n.nl bouwt Nix de app (`buildNpmPackage`).
 
 ## Bronnen en dank
 
-- [Desert Ant Labs](https://desertant.com): Voz, Who, Ear, Clear, Eye, Moderator, Tongue, Gist, Redact, Emo, Shapes.
+- [Desert Ant Labs](https://desertant.com): Voz, Who, Ear, Clear, Uhm, Eye, Moderator, Face, Tongue, Gist, Redact, Toxic, Emo, Shapes (SDK 5.0.0).
 - [Tesseract](https://github.com/naptha/tesseract.js) (OCR), [Opus-MT](https://huggingface.co/Helsinki-NLP) via [Transformers.js](https://github.com/huggingface/transformers.js) (vertalen), [Qwen3](https://huggingface.co/Qwen) via [WebLLM](https://github.com/mlc-ai/web-llm) (schrijven), [Piper](https://github.com/rhasspy/piper) (voorlezen), [EmbeddingGemma 2](https://huggingface.co/google/embeddinggemma-2) en [multilingual-e5-small](https://huggingface.co/intfloat/multilingual-e5-small) (zoeken).
 - Michiel Buisman (AI Usecase Explorer, AIbaarAI): de ideeën achter *Willen/mogen/kunnen*, *Checklist* en *Zoeken met bronvermelding*.
 
@@ -314,6 +320,7 @@ een gebruiker direct te zien welke versie die draaide.
 | 0.10.3 | Scan lezen in twee stappen: eerst bepalen waar het tekstblok staat, dan alleen dat blok lezen (buurkolommen, randen en stippellijnen vallen weg); losse tekens aan de regelranden weg, afgebroken woorden weer heel, regels samengevoegd tot alinea's. Op een echte krantenfoto: van een kolom vol flarden naar lopende tekst met een handvol leesfouten |
 | 0.10.4 | Scan lezen: alinea's ook goed op een scheve foto (inspringing gemeten tegen de regels eromheen), koppen als eigen alinea, linkerrand van het tekstblok strakker zodat een stippellijn naast de kolom niet meekomt, afbreekstreepjes in alle vormen weggewerkt |
 | 0.11.0 | Nieuwe kraal *Verslag door Claude* (Anthropic API met eigen sleutel, keuze Opus 5.5 of Fable 5.2, projectcontext en sjabloon met voorbeeld, controle vóór versturen) en *Namen terugzetten* (lokaal); verhaal *Overleg → verslag met Claude*; koppen en tabellen worden in de uitkomst opgemaakt |
+| 0.12.0 | Desert Ant SDK 5.0.0 (was 4.3.0): nieuwe gewichten voor Eye en Moderator, nieuw Shapes-model (meerdere halen, zes tekens). Nieuwe kralen *Stopwoordjes* (Uhm), *Haatdragende taal?* (Toxic) en *Gezichten vervagen* (Face-detector); dezelfde drie als knop in AntBench; Toxic en Uhm kiesbaar in Project |
 
 Verandert `package-lock.json`, zet dan `npmDepsHash` in `default.nix` opnieuw
 (`nix run nixpkgs#prefetch-npm-deps -- package-lock.json`).

@@ -11,7 +11,7 @@ import { modality, fileToText, decodeAudio, imageToPixels, actions, MODEL_LABELS
 import { xmpPacket, jpegWithXmp } from "./xmp.js";
 
 const DEFAULTS = { tekst: ["redact", "gist", "tongue"], audio: ["voz"], beeld: ["eye"] };
-const CHOICES  = { tekst: ["redact", "gist", "tongue", "emo"], audio: ["voz", "who", "ear", "clear"], beeld: ["eye", "moderator"] };
+const CHOICES  = { tekst: ["redact", "gist", "tongue", "emo", "toxic"], audio: ["voz", "who", "ear", "clear", "uhm"], beeld: ["eye", "moderator"] };
 
 let projects = new Map();                 // naam → { files: [], results: Map(file → {model → result}) }
 const list = $("project-list");

@@ -1,6 +1,6 @@
 // Tekst-tabblad: Redact, Tongue, Emo, Gist. Invoer via typen, bestand of Delen.
 import { $, BASE, run, showResult, clearResult, highlightPlaceholders, table, setStatus } from "./ui.js";
-import { model, fileToText } from "./engine.js";
+import { model, fileToText, TOXIC_NL } from "./engine.js";
 
 const input = $("text-input");
 const actions = {
@@ -27,9 +27,15 @@ const actions = {
     const t = await (await model("gist")).classify(text, { topK: 6 });
     showResult(t.map((x) => x.name).join(", "), table(t.map((x) => [x.name, x.score])));
   },
+  toxic: async (text) => {
+    const r = await (await model("toxic")).analyze(text);
+    const rijen = Object.entries(r.scores).sort((a, b) => b[1] - a[1]).map(([k, v]) => [`${TOXIC_NL[k] ?? k}${r.flagged?.includes(k) ? " ●" : ""}`, v]);
+    showResult(r.isToxic ? `Let op: ${r.content.map((k) => TOXIC_NL[k] ?? k).join(", ")}${r.targets?.length ? ` (gericht op: ${r.targets.map((k) => TOXIC_NL[k] ?? k).join(", ")})` : ""}` : "Geen haatdragende taal gevonden",
+      table([["Oordeel", r.isToxic ? "let op" : "in orde"], ...rijen]));
+  },
 };
 
-const labels = { redact: "Redact (PII)", tongue: "Tongue (taal)", emo: "Emo (emoji)", gist: "Gist (onderwerpen)" };
+const labels = { redact: "Redact (PII)", tongue: "Tongue (taal)", emo: "Emo (emoji)", gist: "Gist (onderwerpen)", toxic: "Toxic (haatdragend)" };
 for (const b of document.querySelectorAll("#tab-tekst button.run"))
   b.onclick = () => { if (input.value.trim()) run(labels[b.dataset.model], () => actions[b.dataset.model](input.value)); };
 

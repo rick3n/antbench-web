@@ -163,6 +163,9 @@ window.addEventListener("drop", (e) => { if (lane.contains(e.target)) return; e.
 const telWoorden = (t) => (t ?? "").split(/\s+/).filter(Boolean).length;
 function samenvatting(m, d, pakket) {
   if (d.passages) return `${d.passages.length} passages gevonden`;
+  if (d.stopwoorden) return `${d.stopwoorden.length} stopwoordjes`;
+  if (d.toon) return d.toon.letOp ? `let op: ${d.toon.soort.join(", ")}` : "geen haatdragende taal";
+  if (d.gezichten != null) return d.gezichten ? `${d.gezichten} ${d.gezichten === 1 ? "gezicht" : "gezichten"} vervaagd` : "geen gezichten gevonden";
   if (d.claude) return `${telWoorden(d.tekst)} woorden · ${d.claude.model}`;
   if (d.teruggezet != null) return `${d.teruggezet} plaatshouders ingevuld`;
   if (d.actiepunten != null) return d.actiepunten ? `${d.actiepunten} ${d.actiepunten === 1 ? "actiepunt" : "actiepunten"}` : "geen actiepunten gevonden";
@@ -249,6 +252,9 @@ function labels(p) {
   if (p.taal) l.push(`taal: ${p.taal}`);
   if (p.onderwerpen?.length) l.push(`onderwerp: ${p.onderwerpen[0].name}`);
   if (p.pgg) l.push(`${p.pgg.length} persoonsgegevens gemaskeerd`);
+  if (p.stopwoorden) l.push(`${p.stopwoorden.length} stopwoordjes`);
+  if (p.toon) l.push(p.toon.letOp ? "toon: let op" : "toon: in orde");
+  if (p.gezichten) l.push(`${p.gezichten} gezichten vervaagd`);
   if (p.claude) l.push("verslag door Claude");
   if (p.teruggezet != null) l.push("namen teruggezet");
   if (p.sprekerAantal) l.push(`${p.sprekerAantal} sprekers`);
@@ -291,6 +297,9 @@ function kaart(i) {
   if (d.overgeslagen) { const p = document.createElement("p"); p.textContent = `Overgeslagen: ${d.overgeslagen}.`; voeg("", p); }
   if (d.beoordeling) tekstblok(d.beoordeling, "Beoordeling");
   if (d.taal) voeg("", tabel([["Taal", d.taal]]));
+  if (d.stopwoorden) voeg("Stopwoordjes", tabel([["Aantal", d.stopwoorden.length], ["Per minuut", d.stopDuur ? (d.stopwoorden.length / (d.stopDuur / 60)).toFixed(1) : "–"], ...(open ? d.stopwoorden : d.stopwoorden.slice(0, 5)).map((f) => [fmt(f.start), `${(f.end - f.start).toFixed(2)} s · ${Math.round(f.confidence * 100)} %`]), ...(!open && d.stopwoorden.length > 5 ? [["…", `en nog ${d.stopwoorden.length - 5}`]] : [])]));
+  if (d.toon) voeg("Toon", tabel([["Oordeel", d.toon.letOp ? `let op: ${d.toon.soort.join(", ")}` : "in orde"], ...(d.toon.doelwit.length ? [["Gericht op", d.toon.doelwit.join(", ")]] : []), ...d.toon.scores.map(([k, v]) => [k, `${Math.round(v * 100)} %`])]));
+  if (d.gezichten != null) { voeg("", tabel([["Gezichten", d.gezichten || "geen gevonden; de foto gaat ongewijzigd door"]])); if (d.bewerktBeeld) { u.beeldUrl ??= URL.createObjectURL(d.bewerktBeeld); const im = document.createElement("img"); im.src = u.beeldUrl; im.className = "kaartbeeld"; const a = document.createElement("a"); a.href = u.beeldUrl; a.download = "gezichten-vervaagd.jpg"; a.textContent = "Bewerkte foto opslaan"; a.className = "small"; const w = document.createElement("div"); w.append(im, a); voeg("Bewerkte foto", w); } }
   if (d.onderwerpen) voeg("Onderwerpen", tabel(d.onderwerpen.map((t) => [t.name, `${Math.round(t.score * 100)} %`])));
   if (d.pgg) voeg(`Persoonsgegevens (${d.pgg.length})`, tabel((open ? d.pgg : d.pgg.slice(0, 5)).map((x) => [x.label, x.placeholder ?? x.original ?? ""]).concat(!open && d.pgg.length > 5 ? [["…", `en nog ${d.pgg.length - 5}`]] : [])));
   if (d.tags) voeg("Trefwoorden", tabel([["", d.tags.join(", ")]]));

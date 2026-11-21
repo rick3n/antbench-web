@@ -35,8 +35,13 @@ const actions = {
              ["Uit", `${r.sampleRate} Hz mono`]]),
       wav, "antbench-clear.wav");
   },
+  uhm: async () => {
+    const r = await (await model("uhm")).detect(samples, sampleRate);
+    const perMin = r.audioDuration ? (r.fillers.length / (r.audioDuration / 60)).toFixed(1) : "–";
+    showResult(`${r.fillers.length} stopwoordjes in ${fmt(r.audioDuration)}`, table([["Stopwoordjes", r.fillers.length], ["Per minuut", perMin], ...r.fillers.slice(0, 40).map((f) => [`${fmt(f.start)} (${(f.end - f.start).toFixed(2)} s)`, f.confidence])]));
+  },
 };
-const labels = { voz: "Voz (transcriptie)", who: "Who (sprekers)", ear: "Ear (taal)", clear: "Clear (opschonen)" };
+const labels = { voz: "Voz (transcriptie)", who: "Who (sprekers)", ear: "Ear (taal)", clear: "Clear (opschonen)", uhm: "Uhm (stopwoordjes)" };
 for (const b of document.querySelectorAll("#tab-audio button.run"))
   b.onclick = () => { if (!samples) return setStatus("Eerst opnemen of een bestand kiezen."); run(labels[b.dataset.model], actions[b.dataset.model]); };
 

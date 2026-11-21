@@ -37,6 +37,7 @@
       <button class="primary run" data-model="tongue">Taal</button>
       <button class="primary run" data-model="emo">Emoji</button>
       <button class="primary run" data-model="gist">Onderwerpen</button>
+      <button class="primary run" data-model="toxic">Haatdragend?</button>
     </div>
     <p class="small">Redact: PII maskeren · Tongue: taal uit een paar woorden · Emo: emoji-suggesties · Gist: onderwerpen (36 topics)</p>
   </section>
@@ -55,6 +56,7 @@
       <button class="primary run" data-model="who">Wie sprak</button>
       <button class="primary run" data-model="ear">Gesproken taal</button>
       <button class="primary run" data-model="clear">Opschonen</button>
+      <button class="primary run" data-model="uhm">Stopwoordjes</button>
     </div>
     <audio id="audio-out" controls style="display:none"></audio>
     <p class="small">Voz: spraak-naar-tekst (25 talen) · Who: sprekers · Ear: taal uit ~30 s · Clear: ruis/galm weg, 48 kHz. Alles op dit toestel.</p>
@@ -72,6 +74,7 @@
     <div class="row">
       <button class="primary run" data-model="eye">Analyseer</button>
       <button class="primary run" data-model="moderator">Moderatie</button>
+      <button class="primary run" data-model="gezichten">Gezichten vervagen</button>
     </div>
     <div class="row small">
       <label>NSFW-drempel <select id="mod-threshold">
@@ -87,7 +90,7 @@
 
   <!-- ===================== Tekenen ===================== -->
   <section id="tab-tekenen" class="tab">
-    <p class="small">Teken één vorm in één haal (cirkel, pijl, ster, hart…). Shapes maakt er een nette vorm van.</p>
+    <p class="small">Teken een vorm, in één haal of in meer (cirkel, pijl, ster, hart, wolk…). Even wachten en Shapes maakt er een nette vorm van. Het herkent ook een vinkje, kruis, plus, haak, zigzag en een krabbel.</p>
     <canvas id="draw-canvas" class="preview draw"></canvas>
     <div class="row">
       <button id="draw-clear">Wis</button>

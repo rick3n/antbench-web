@@ -18,6 +18,10 @@ const loaders = {
   eye:       async () => (await import("@desert-ant-labs/eye")).Eye.load(litert()),
   moderator: async () => (await import("@desert-ant-labs/moderator")).Moderator.load(litert()),
   shapes:    async () => (await import("@desert-ant-labs/shapes")).Shapes.load(litert()),
+  uhm:       async () => (await import("@desert-ant-labs/uhm")).Uhm.load(litert()),
+  toxic:     async () => (await import("@desert-ant-labs/toxic")).Toxic.load(litert()),
+  // Alleen de detector (waar zit een gezicht), bewust niet het herkennen van wie het is.
+  gezichten: async () => (await import("@desert-ant-labs/face")).FaceDetector.load(litert()),
 };
 const loaded = {};
 export async function model(name) {
@@ -29,6 +33,7 @@ export const MODEL_LABELS = {
   redact: "Redact (PII)", tongue: "Tongue (taal)", emo: "Emo (emoji)", gist: "Gist (onderwerpen)",
   voz: "Voz (transcriptie)", who: "Who (sprekers)", ear: "Ear (gesproken taal)", clear: "Clear (opschonen)",
   eye: "Eye (analyse)", moderator: "Moderator (NSFW)", shapes: "Shapes (vorm)",
+  uhm: "Uhm (stopwoordjes)", toxic: "Toxic (haatdragend)", gezichten: "Face (gezichten vervagen)",
 };
 
 // --- Modaliteit uit bestandsnaam/MIME -----------------------------------------
@@ -129,6 +134,31 @@ export async function imageToPixels(blob, max = 1600) {
   return { data: img.data, width: img.width, height: img.height, canvas: c };
 }
 
+/** Namen van de Toxic-koppen in gewoon Nederlands. */
+export const TOXIC_NL = { HATEFUL: "haatdragend", ABUSIVE: "beledigend", THREAT: "bedreigend", RACE: "afkomst of huidskleur", RELIGION: "religie", NATIONAL_ETHNIC_ORIGIN: "nationaliteit of etniciteit", SEXUAL_ORIENTATION: "seksuele gerichtheid", GENDER: "gender", DISABILITY: "beperking", AGE: "leeftijd", OTHER: "andere groep" };
+
+/**
+ * Gezichten onherkenbaar maken: elk gevonden vlak wordt grof geblokt (niet vervaagd; blokken zijn
+ * niet terug te rekenen). Geeft een nieuw canvas en een JPEG terug; het origineel blijft ongemoeid.
+ */
+export async function vervaagGezichten(bron, gezichten) {
+  const c = document.createElement("canvas"); c.width = bron.width; c.height = bron.height;
+  const ctx = c.getContext("2d"); ctx.drawImage(bron, 0, 0);
+  const klein = document.createElement("canvas"), kctx = klein.getContext("2d");
+  for (const g of gezichten) {
+    const b = g.box, fr = b.x1 <= 1.5 && b.y1 <= 1.5;        // fracties of pixels
+    let x0 = b.x0 * (fr ? c.width : 1), y0 = b.y0 * (fr ? c.height : 1), x1 = b.x1 * (fr ? c.width : 1), y1 = b.y1 * (fr ? c.height : 1);
+    const mx = (x1 - x0) * 0.18, my = (y1 - y0) * 0.22;      // ook haarlijn en kin
+    x0 = Math.max(0, Math.floor(x0 - mx)); y0 = Math.max(0, Math.floor(y0 - my)); x1 = Math.min(c.width, Math.ceil(x1 + mx)); y1 = Math.min(c.height, Math.ceil(y1 + my));
+    const w = x1 - x0, h = y1 - y0; if (w < 2 || h < 2) continue;
+    klein.width = 6; klein.height = Math.max(4, Math.round(6 * h / w));
+    kctx.imageSmoothingEnabled = true; kctx.drawImage(c, x0, y0, w, h, 0, 0, klein.width, klein.height);
+    ctx.imageSmoothingEnabled = false; ctx.drawImage(klein, 0, 0, klein.width, klein.height, x0, y0, w, h); ctx.imageSmoothingEnabled = true;
+  }
+  const blob = await new Promise((r) => c.toBlob(r, "image/jpeg", 0.9));
+  return { canvas: c, blob };
+}
+
 /**
  * Foto van papier → canvas dat OCR aankan. Een telefoonfoto heeft schaduw, grijs papier en ruis;
  * Tesseract kiest één drempel voor de hele foto en leest dan ruis als letters. Daarom:
@@ -180,5 +210,7 @@ export const actions = {
     return { summary: `${a.kind ?? "foto"}: ${a.tags().slice(0, 6).join(", ")}`, kind: a.kind, tags: a.tags(), scores: a.scores,
              people: a.people?.length ?? 0, faces: a.faces?.length ?? 0, pets: a.pets?.length ?? 0, rotation: a.rotation ?? 0 };
   },
+  uhm:    async ({ audio }) => { const r = await (await model("uhm")).detect(audio.samples, audio.sampleRate); return { summary: `${r.fillers.length} stopwoordjes in ${fmt(r.audioDuration)}`, fillers: r.fillers.map((f) => ({ start: f.start, end: f.end, confidence: f.confidence })), audioDuration: r.audioDuration }; },
+  toxic:  async ({ text }) => { const r = await (await model("toxic")).analyze(text); return { summary: r.isToxic ? `let op: ${r.content.map((k) => TOXIC_NL[k] ?? k).join(", ")}` : "geen haatdragende taal gevonden", isToxic: r.isToxic, content: r.content, targets: r.targets, scores: r.scores }; },
   moderator: async ({ pixels }) => { const m = await (await model("moderator")).analyze(pixels, moderation); return { summary: `NSFW ${m.isNSFW ? "ja" : "nee"} (${Math.round(m.score * 100)}%, drempel ${moderation.threshold})`, isNSFW: m.isNSFW, score: m.score, regions: m.regions, threshold: moderation.threshold }; },
 };
