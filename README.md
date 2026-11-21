@@ -232,6 +232,8 @@ Schuingedrukte kralen bestaan nog niet; de ketting stopt daar.
 
 ## Wat nog niet goed gaat
 
+**iPhone en iPad.** Safari geeft een tabblad weinig geheugen en gooit de pagina zonder melding weg als het te veel wordt. Het transcriptiemodel gebruikt in de browser ongeveer 1,2 GB. Daarom staat op die toestellen *Zuinig met geheugen* aan: het transcriberen draait apart en geeft zijn geheugen terug voordat de volgende stap begint. Gemeten in Chrome op een laptop zakt het geheugen tijdens de stap *Sprekers* daarmee van ongeveer 1,8 GB naar onder 1 GB. Op een echte iPhone is dit nog niet bevestigd, en het taalmodel (de schrijfkralen) blijft daar een risico.
+
 - **Het kleine taalmodel is beperkt.** Standaard draait Qwen3-0.6B, omdat het
   grotere model (1,7B) op veel toestellen te veel grafisch geheugen vraagt. In
   een proef kon het kleine model geen actiepunten uit een tekst halen; daarom
@@ -343,6 +345,7 @@ een gebruiker direct te zien welke versie die draaide.
 | 0.12.1 | Maskeren geeft dezelfde naam overal hetzelfde nummer en maskeert ook vindplaatsen die het model oversloeg; Claude krijgt uitleg over de plaatshouders en schrijft er niet meer over; Word en PDF vermelden in de voetregel dat het verslag via Anthropic is gemaakt; hint op de kaart *Verslag door Claude* dat de namen in *Namen terugzetten* staan |
 | 0.13.0 | Gebruikersscherm voor de telefoon: een ketting als eenvoudige pagina met alleen invoer, start en resultaat, onder elkaar (*Deel voor gebruikers* in de studio); het paneel van *Verslag door Claude* klapt in zodra de sleutel is ingesteld |
 | 0.14.0 | Archief: elke run wordt op het toestel bewaard en is terug te halen met invoer, stappen en resultaat; opnieuw draaien vanaf een stap (*Verslag opnieuw maken*); ZIP-export en -import per sessie; bewaartermijn (standaard 30 dagen) en *Alles wissen* |
+| 0.14.1 | Zuinig met geheugen (vanzelf aan op iPhone en iPad): transcriberen draait in een eigen worker die daarna stopt, zodat het geheugen van Voz (±1,2 GB) vrij is voordat het volgende model laadt; kleine modellen worden na hun stap vrijgegeven; de gedecodeerde opname wordt losgelaten zodra geen stap hem meer nodig heeft |
 
 Verandert `package-lock.json`, zet dan `npmDepsHash` in `default.nix` opnieuw
 (`nix run nixpkgs#prefetch-npm-deps -- package-lock.json`).

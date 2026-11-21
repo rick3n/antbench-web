@@ -7,7 +7,7 @@
 // Een kraal kleurt groen als alles wat hij nodig heeft op dat punt in de ketting
 // al aanwezig is, anders rood. Kralen met status "komt" bestaan nog niet.
 import { BASE, setProgress, setStatus } from "../ui.js";
-import { model, actions, decodeAudio, downsample, toWav, imageToPixels, voorOcr, fileToText, fmt, vervaagGezichten, TOXIC_NL } from "../engine.js";
+import { model, actions, geheugen, vozApart, decodeAudio, downsample, toWav, imageToPixels, voorOcr, fileToText, fmt, vervaagGezichten, TOXIC_NL } from "../engine.js";
 
 // --- Sleutels van het doorgeefpakket (voor uitleg en kleur) ---------------------
 export const SLEUTELS = {
@@ -472,7 +472,7 @@ export const MODULES = [
   // Luisteren
   { id: "voz", groep: "luisteren", naam: "Transcriberen", lev: "Desert Ant Voz", in: ["audio"], out: ["tekst", "woorden"],
     uitleg: "Spraak naar tekst, met per woord het tijdstip. 25 talen, raadt de taal zelf. Zijn de sprekers al bepaald, dan wordt de tekst per spreker ingedeeld.",
-    run: async (p) => { const r = await (await model("voz")).transcribe(p.audio, { onProgress: setProgress }); return { tekst: p.sprekers ? sprekerTekst(r.words, p.sprekers) : r.text.trim(), woorden: r.words }; } },
+    run: async (p) => { const r = geheugen.zuinig ? await vozApart(p.audio) : await (await model("voz")).transcribe(p.audio, { onProgress: setProgress }); return { tekst: p.sprekers ? sprekerTekst(r.words, p.sprekers) : r.text.trim(), woorden: r.words }; } },
   { id: "who", groep: "luisteren", naam: "Sprekers", lev: "Desert Ant Who", in: ["audio"], out: ["sprekers", "tekst"],
     uitleg: "Wie sprak wanneer. Staat er al een transcript, dan wordt het per spreker ingedeeld.",
     run: async (p) => { const w = (await (await model("who")).diarize(p.audio)).keepingSpeakers({ minimumShare: 0.08 }); const out = { sprekers: w.turns, sprekerAantal: w.speakerCount }; if (p.woorden) out.tekst = sprekerTekst(p.woorden, w.turns); return out; } },

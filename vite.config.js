@@ -12,6 +12,8 @@ export default defineConfig({
   // Versie uit package.json; zichtbaar in de voettekst en in rapporten/notulen.
   // Bump hem in elke PR die de app verandert.
   define: { __APP_VERSION__: JSON.stringify(pkg.version) },
+  // De Voz-worker (src/voz-worker.js) laadt zijn model met dynamische imports; dat vraagt ES-modules.
+  worker: { format: "es" },
   build: {
     outDir: "dist", emptyOutDir: true, target: "es2022",
     // Drie pagina's: de app zelf, de menukaart (werkbank/) en de ketting (ketting/).

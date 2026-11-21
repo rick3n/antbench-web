@@ -5,7 +5,7 @@ import JSZip from "jszip";
 import { $, BASE, VERSION, setStatus, setProgress, netSummary } from "../ui.js";
 import { MODULES, GROEPEN, RECEPTEN, SLEUTELS, byId, startpakket, llmInstelling, kiesLlm, LLM_KEUZE, claudeInstelling, zetClaude, CLAUDE_MODELLEN, VOORBEELD_SJABLOON } from "./modules.js";
 import { fileToText } from "../engine.js";
-import { fmt, grootte } from "../engine.js";
+import { fmt, grootte, geheugen, zetZuinig, geefAllesVrij } from "../engine.js";
 import { bewaar } from "../export.js";
 import { archiefInstelling, zetArchief, bewaarSessie, haalSessie, wisSessie, wisAlles, lijst, ruimOp, ruimte, alsZip, uitZip } from "./archief.js";
 
@@ -241,6 +241,9 @@ async function draai(vanaf = 0) {
       const kreeg = m.in.map((k) => beschrijf(k, pakket)).join(" + "), tekstVoor = pakket.tekst;
       const d = await m.run(pakket);
       Object.assign(pakket, d);
+      // Wat hierna niemand meer nodig heeft, gaat het geheugen uit: de gedecodeerde opname, en op zuinige toestellen het model.
+      if (pakket.audio && !ketting.slice(i + 1).some((id) => byId[id].in.includes("audio"))) delete pakket.audio;
+      if (geheugen.zuinig && i < ketting.length - 1) { await geefAllesVrij(); await new Promise((r) => setTimeout(r, 150)); }
       const nieuw = d.tekst != null && d.tekst !== tekstVoor;
       const door = pakket.tekst == null ? "" : nieuw ? `nieuwe tekst (${telWoorden(pakket.tekst)} woorden)` : `tekst ongewijzigd (${telWoorden(pakket.tekst)} woorden)`;
       uitkomsten[i] = { id: m.id, ok: true, samenvatting: samenvatting(m, d, pakket), pakket: d, ms: performance.now() - tb, kreeg, door, nieuw, labels: labels(pakket) };
@@ -480,6 +483,7 @@ $("archief-file").onchange = async (e) => { const f = e.target.files?.[0]; e.tar
 zeker($("archief-wis"), async () => { await wisAlles(); tekenArchief(); setStatus("Het archief op dit toestel is leeg."); });
 ruimOp().catch(() => 0).then((n) => { tekenArchief(); if (n) setStatus(`${n} ${n === 1 ? "sessie" : "sessies"} ouder dan ${archiefInstelling.dagen} dagen uit het archief verwijderd.`); });
 
+$("zuinig").checked = geheugen.zuinig; $("zuinig").onchange = (e) => zetZuinig(e.target.checked);
 // --- Instellingen --------------------------------------------------------------------------
 $("llm").value = llmInstelling.maat; $("llm").onchange = (e) => kiesLlm(e.target.value); llmInstelling.luister = (m) => { $("llm").value = m; };
 $("llm-info").textContent = `(${Object.entries(LLM_KEUZE).map(([k, v]) => `${k}: ${v.replace("-q4f16_1-MLC", "")}`).join(", ")}; ${navigator.gpu ? "WebGPU beschikbaar; klein is de standaard, normaal vraagt veel grafisch geheugen" : "geen WebGPU: taalmodel werkt hier niet"})`;

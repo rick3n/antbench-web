@@ -24,6 +24,46 @@ const loaders = {
   gezichten: async () => (await import("@desert-ant-labs/face")).FaceDetector.load(litert()),
 };
 const loaded = {};
+/**
+ * Zuinig met geheugen: op een iPhone of iPad mag een tabblad veel minder geheugen gebruiken dan op Android of een
+ * laptop, en gooit Safari de pagina zonder melding weg als het te veel wordt. Dan laden we geen tweede model
+ * bovenop het eerste: kleine modellen geven we vrij zodra hun stap klaar is, en Voz (±1,2 GB, zonder eigen
+ * dispose) draait in een aparte worker die na afloop wordt beëindigd. Alleen dat geeft het geheugen echt terug:
+ * het sluiten van de ONNX-sessies doet dat gemeten niet, omdat WebAssembly-geheugen nooit krimpt.
+ */
+const apple = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+const bewaardZuinig = (() => { try { return localStorage.getItem("antbench.zuinig"); } catch { return null; } })();
+export const geheugen = { zuinig: bewaardZuinig != null ? bewaardZuinig === "1" : apple || (navigator.deviceMemory ?? 8) <= 4 };
+export function zetZuinig(aan) { geheugen.zuinig = aan; try { localStorage.setItem("antbench.zuinig", aan ? "1" : "0"); } catch {} }
+/** Eén model uit het geheugen halen; de volgende model(naam) laadt het opnieuw uit de modelcache. Voz kan dit niet. */
+export async function geefVrij(name) {
+  const m = loaded[name]; if (!m || typeof m.dispose !== "function") return false;
+  delete loaded[name];
+  try { await m.dispose(); } catch (e) { console.warn("vrijgeven", name, e); }
+  return true;
+}
+/**
+ * Transcriberen in een eigen worker, die daarna stopt. De samples gaan zonder kopie heen en komen terug.
+ * Geeft { text, words } en zet audio.samples terug.
+ */
+export function vozApart(audio) {
+  return new Promise((ok, fout) => {
+    const w = new Worker(new URL("./voz-worker.js", import.meta.url), { type: "module" });
+    const heel = audio.samples.byteOffset === 0 && audio.samples.byteLength === audio.samples.buffer.byteLength;
+    const samples = heel ? audio.samples : audio.samples.slice();
+    const klaar = (f, v) => { w.terminate(); f(v); };
+    w.onmessage = ({ data: d }) => {
+      if (d.t === "laden") { setStatus("voz: model laden…"); setProgress(d.f); }
+      else if (d.t === "voortgang") { setStatus("Transcriberen…"); setProgress(d.f); }
+      else if (d.t === "klaar") { if (heel) audio.samples = d.samples; klaar(ok, { text: d.text, words: d.words }); }
+      else if (d.t === "fout") { if (heel && d.samples) audio.samples = d.samples; klaar(fout, new Error(d.m)); }
+    };
+    w.onerror = (e) => klaar(fout, new Error(`transcriberen in de achtergrond mislukte: ${e.message || "onbekende fout"}`));
+    w.postMessage({ samples, sampleRate: audio.sampleRate, wasmDir: new URL(`${BASE}ort/`, location.href).href }, [samples.buffer]);
+  });
+}
+/** Alle geladen modellen vrijgeven; geeft de namen terug. */
+export async function geefAllesVrij() { const namen = Object.keys(loaded); for (const n of namen) await geefVrij(n); return namen; }
 export async function model(name) {
   if (!loaded[name]) { setStatus(`${name}: model laden (eerste keer)…`); loaded[name] = await loaders[name](); }
   return loaded[name];
