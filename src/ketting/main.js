@@ -310,6 +310,7 @@ function kaart(i) {
   else if (d.tekst != null && m.out.includes("tekst")) tekstblok(d.tekst, `${m.id === "redact" ? "Gemaskeerde tekst" : "Nieuwe tekst"}${d.delen > 1 ? ` · gemaakt in ${d.delen} delen` : ""}`);
   if (d.spraak) { u.spraakUrl ??= URL.createObjectURL(d.spraak); const a = document.createElement("audio"); a.controls = true; a.src = u.spraakUrl; voeg("Spraak", a); }
   if (d.claude) { const w = document.createElement("div"); w.className = "kreeg"; w.textContent = `${d.claude.model} · ${d.claude.tin.toLocaleString("nl")} tokens in, ${d.claude.tuit.toLocaleString("nl")} uit · ongeveer $${d.claude.dollar.toFixed(d.claude.dollar < 0.1 ? 3 : 2)} · ${d.claude.bewaring} door Anthropic${d.claude.afgekapt ? " · het antwoord is afgekapt" : ""}`; k.append(w); }
+  if (d.claude && PLAATSHOUDER.test(d.tekst ?? "")) { const w = document.createElement("div"); w.className = "kreeg"; w.textContent = "De namen staan hier nog als plaatshouder, zo kwam het verslag terug. De kraal Namen terugzetten vult ze in: bewaar het verslag vanaf die kaart."; k.append(w); }
   if (d.teruggezet != null) { const w = document.createElement("div"); w.className = "kreeg"; w.textContent = `${d.teruggezet} plaatshouders weer ingevuld, op dit toestel.${d.nietTerug ? ` ${d.nietTerug} plaatshouders staan er nog: die kwamen niet uit de maskering.` : ""}`; k.append(w); }
   if (d.uitgesneden || d.weggelaten) { const w = document.createElement("div"); w.className = "kreeg"; w.textContent = [d.uitgesneden ? "Alleen het tekstblok gelezen; wat eromheen stond is weggelaten." : "", d.weggelaten ? `${d.weggelaten} losse tekens aan de rand weggelaten.` : ""].filter(Boolean).join(" "); k.append(w); }
   if (open && d.ruw && (d.uitgesneden || d.weggelaten)) { const det = document.createElement("details"); det.innerHTML = `<summary>Wat de OCR op de hele foto las</summary>`; const p = document.createElement("div"); p.className = "tekstblok"; p.innerHTML = md(d.ruw); det.append(p); voeg("", det); }
@@ -348,13 +349,17 @@ function verslagMd(zip = null, kort = false) {
   return verslag.join("\n");
 }
 let gekozenKraal = null;
+const PLAATSHOUDER = /\[[A-Z_]+_\d+\]/;
+/** Voetregel van Word en PDF: eerlijk over wat het toestel uit is gegaan. */
+const herkomst = (tot) => { const u = uitkomsten.slice(0, tot + 1).filter((x) => x?.ok && byId[x.id].extern).pop(); if (!u) return undefined; const gemaskeerd = uitkomsten.slice(0, uitkomsten.indexOf(u)).some((x) => x?.ok && x.id === "redact"); return `verslag gemaakt door ${u.pakket.claude?.model ?? "Claude"} (Anthropic); daarvoor is ${gemaskeerd ? "de gemaskeerde tekst" : "de tekst, niet gemaskeerd,"} verstuurd`; };
 $("bewaar-kraal").onclick = () => {
   const i = gekozenKraal ?? uitkomsten.map((u, j) => (u?.ok ? j : -1)).filter((j) => j >= 0).pop(); const u = uitkomsten[i]; if (!u) return;
   const m = byId[u.id], d = u.pakket, tekst = d.beoordeling ?? d.tekst ?? "";
   const md = [`# ${m.naam} — ${basisnaam()}`, "", `${new Date().toLocaleString("nl-NL")} · ${u.samenvatting} · ${VERSION}`, "", tekst].join("\n");
-  bewaar($("fmt").value, md, `${basisnaam()}__${m.id}`).catch((e) => setStatus(`Opslaan mislukt: ${e.message}`));
+  const later = uitkomsten.findIndex((x, j) => j > i && x?.ok && x.id === "terugzetten");
+  bewaar($("fmt").value, md, `${basisnaam()}__${m.id}`, herkomst(i)).then(() => { if (PLAATSHOUDER.test(tekst) && later >= 0) setStatus("Opgeslagen met plaatshouders. Voor de versie met namen: tik op de kaart Namen terugzetten en bewaar opnieuw."); }).catch((e) => setStatus(`Opslaan mislukt: ${e.message}`));
 };
-$("bewaar-verslag").onclick = () => bewaar($("fmt").value, verslagMd(), `${basisnaam()}__ketting`).catch((e) => setStatus(`Opslaan mislukt: ${e.message}`));
+$("bewaar-verslag").onclick = () => bewaar($("fmt").value, verslagMd(), `${basisnaam()}__ketting`, herkomst(uitkomsten.length - 1)).catch((e) => setStatus(`Opslaan mislukt: ${e.message}`));
 
 $("download").onclick = async () => {
   const zip = new JSZip(), basis = basisnaam();

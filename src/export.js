@@ -47,9 +47,10 @@ function download(blob, naam) {
   setTimeout(() => URL.revokeObjectURL(a.href), 60_000);
 }
 
+const LOKAAL = "gemaakt op dit toestel, niets is naar een server gestuurd";
 export function alsMd(md, basis) { download(new Blob([md], { type: "text/markdown" }), `${basis}.md`); }
 
-export async function alsDocx(md, basis) {
+export async function alsDocx(md, basis, herkomst = LOKAAL) {
   const { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableRow, TableCell, WidthType, BorderStyle } = await import("docx");
   const par = (b) => {
     const tr = (r) => new TextRun({ text: r.t, bold: !!r.b, italics: !!r.i, highlight: r.mark ? "yellow" : undefined });
@@ -70,12 +71,12 @@ export async function alsDocx(md, basis) {
         width: { size: i === 0 ? 30 : 70, type: WidthType.PERCENTAGE }, children: [new Paragraph({ children: runs(c).map((x) => new TextRun({ text: x.t, bold: !!x.b || i === 0, color: i === 0 ? "666666" : undefined, highlight: x.mark ? "yellow" : undefined })) })] })) })) }));
     kinderen.push(new Paragraph({}));
   }
-  kinderen.push(new Paragraph({ children: [new TextRun({ text: `${VERSION} · gemaakt op dit toestel, niets is naar een server gestuurd`, size: 16, color: "888888" })] }));
+  kinderen.push(new Paragraph({ children: [new TextRun({ text: `${VERSION} · ${herkomst}`, size: 16, color: "888888" })] }));
   const doc = new Document({ creator: "AntBench", title: basis, styles: { default: { document: { run: { font: "Calibri", size: 22 } } } }, sections: [{ children: kinderen }] });
   download(await Packer.toBlob(doc), `${basis}.docx`);
 }
 
-export async function alsPdf(md, basis) {
+export async function alsPdf(md, basis, herkomst = LOKAAL) {
   const { jsPDF } = await import("jspdf");
   const pdf = new jsPDF({ unit: "pt", format: "a4" });
   const W = 595.28, H = 841.89, M = 56, breed = W - 2 * M; let y = M;
@@ -85,7 +86,7 @@ export async function alsPdf(md, basis) {
     for (const l of lijnen) { if (y + hoog > H - M) { voet(); pdf.addPage(); y = M; } pdf.text(l, x, y + size); y += hoog; }
     y += after;
   };
-  const voet = () => { pdf.setFont("helvetica", "normal"); pdf.setFontSize(8); pdf.setTextColor(140); pdf.text(`${VERSION} · gemaakt op dit toestel, niets is naar een server gestuurd · ${pdf.getNumberOfPages()}`, M, H - 28); };
+  const voet = () => { pdf.setFont("helvetica", "normal"); pdf.setFontSize(8); pdf.setTextColor(140); pdf.text(`${VERSION} · ${herkomst} · ${pdf.getNumberOfPages()}`, M, H - 28); };
   for (const b of parse(md)) {
     if (b.type === "h1") { y += 4; regel(plat(b.text), { size: 18, bold: true, after: 10 }); }
     else if (b.type === "h2") { y += 8; regel(plat(b.text), { size: 13, bold: true, after: 6 }); }
@@ -105,8 +106,8 @@ export async function alsPdf(md, basis) {
 }
 
 /** Eén aanroep: kies op formaat. */
-export async function bewaar(fmt, md, basis) {
-  if (fmt === "docx") return alsDocx(md, basis);
-  if (fmt === "pdf") return alsPdf(md, basis);
+export async function bewaar(fmt, md, basis, herkomst) {
+  if (fmt === "docx") return alsDocx(md, basis, herkomst);
+  if (fmt === "pdf") return alsPdf(md, basis, herkomst);
   return alsMd(md, basis);
 }

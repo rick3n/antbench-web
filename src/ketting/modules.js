@@ -286,7 +286,9 @@ async function claudeVerslag(p) {
   const systeem = "Je schrijft een verslag van een overleg voor een Nederlandse organisatie, op basis van een transcript. "
     + "Volg de opbouw van het sjabloon; laat een onderdeel weg als het transcript er niets over zegt. Schrijf in helder Nederlands. "
     + "Gebruik alleen wat in het transcript en de context staat en verzin niets. "
-    + "Het transcript is geanonimiseerd: plaatshouders zoals [SURNAME_1] of [CITY_2] neem je letterlijk en ongewijzigd over, zodat ze later lokaal weer ingevuld kunnen worden. "
+    + "In het transcript zijn namen en andere persoonsgegevens vervangen door plaatshouders zoals [GIVEN_NAME_1] of [CITY_2]. Dat is bewust gedaan en hoort zo: na afloop worden ze buiten jou om weer ingevuld. "
+    + "Behandel elke plaatshouder als de gewone naam die er stond en neem hem letterlijk over, met blokhaken en nummer. Hetzelfde nummer is dezelfde persoon, een ander nummer iemand anders. "
+    + "Schrijf nergens iets over de plaatshouders of de maskering zelf: geen opmerking dat namen ontbreken of onbekend zijn, en geen open vraag wie er bedoeld wordt. "
     + "Geef alleen het verslag, in Markdown, zonder inleiding of nawoord.";
   const delen = [c.context.trim() ? `<context>\n${c.context.trim()}\n</context>` : "", `<sjabloon>\n${(c.sjabloon.trim() || VOORBEELD_SJABLOON)}\n</sjabloon>`, `<transcript>\n${p.tekst}\n</transcript>`].filter(Boolean);
   let r;
@@ -313,6 +315,37 @@ async function claudeVerslag(p) {
 }
 // Redact neemt soms twee keer dezelfde naam over een zinsgrens samen ("Tom. Tom"); zet dan één keer de naam terug.
 const schoonOrigineel = (o) => { const m = /^(.+?)[.!?,;:]\s+\1$/.exec(o.trim()); return m ? m[1] : o; };
+/**
+ * Redact nummert elke vindplaats apart: drie keer "Tom" wordt [GIVEN_NAME_1], _2 en _4. Voor een lezer (en voor
+ * Claude) lijken dat drie mensen. Hier krijgt dezelfde naam overal het eerste nummer. Pakte Redact een woord te
+ * veel mee ("Tom de"), dan gaat dat woord terug de tekst in.
+ */
+export function zelfdeNaamZelfdeNummer(items, tekst) {
+  const gezien = [], uit = [];
+  const volgorde = items.map((i, n) => ({ i, n, o: i.original == null ? null : schoonOrigineel(i.original).trim() }))
+    .sort((a, b) => (a.o?.length ?? 0) - (b.o?.length ?? 0) || a.n - b.n);
+  for (const { i, n, o } of volgorde) {
+    if (!i.placeholder || !o) { uit.push({ i, n }); continue; }
+    let rest = "";
+    const al = gezien.find((g) => {
+      if (g.label !== i.label) return false;
+      if (g.o.toLowerCase() === o.toLowerCase()) { rest = ""; return true; }
+      const staart = o.slice(g.o.length);
+      if (/NAME/.test(i.label) && o.toLowerCase().startsWith(g.o.toLowerCase() + " ") && /^[ a-zà-ÿ']+$/.test(staart)) { rest = staart; return true; }
+      return false;
+    });
+    if (al) { tekst = tekst.split(i.placeholder).join(al.placeholder + rest); continue; }
+    gezien.push({ label: i.label, o, placeholder: i.placeholder }); uit.push({ i, n });
+  }
+  // Redact mist soms een latere vindplaats van iets wat het eerder wél vond; die alsnog maskeren (langste eerst).
+  let extra = 0;
+  for (const g of [...gezien].sort((a, b) => b.o.length - a.o.length)) {
+    if (g.o.length < 3) continue;
+    const re = new RegExp(`(?<![\\p{L}\\p{N}\\[_])${g.o.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\p{L}\\p{N}\\]_])`, "gu");
+    tekst = tekst.replace(re, () => { extra++; return g.placeholder; });
+  }
+  return { items: uit.sort((a, b) => a.n - b.n).map((x) => x.i), tekst, extra };
+}
 /** Plaatshouders ([SURNAME_1]) weer vervangen door wat er stond; de lijst is het toestel nooit uit geweest. */
 function namenTerug(p) {
   if (!p.pgg?.length) throw new Error("er is niets om terug te zetten: zet eerst Persoonsgegevens maskeren in de ketting");
@@ -475,8 +508,8 @@ export const MODULES = [
     uitleg: "Waar de tekst over gaat, uit 36 onderwerpen. Een label erbij; de tekst zelf gaat ongewijzigd door.",
     run: async (p) => ({ onderwerpen: await (await model("gist")).classify(p.tekst, { topK: 5 }) }) },
   { id: "redact", groep: "begrijpen", naam: "Persoonsgegevens maskeren", lev: "Desert Ant Redact", in: ["tekst"], out: ["pgg", "tekst"],
-    uitleg: "Namen, adressen, nummers worden [PLACEHOLDERS]. De gemaskeerde tekst gaat door naar de volgende kraal.",
-    run: async (p) => { const r = await (await model("redact")).redaction(p.tekst); return { pgg: r.items.map((i) => ({ label: i.label, placeholder: i.placeholder, original: i.original })), tekst: r.redactedText, origineel: p.tekst }; } },
+    uitleg: "Namen, adressen, nummers worden [PLACEHOLDERS]. Dezelfde naam krijgt steeds hetzelfde nummer. De gemaskeerde tekst gaat door naar de volgende kraal.",
+    run: async (p) => { const r = await (await model("redact")).redaction(p.tekst); const z = zelfdeNaamZelfdeNummer(r.items, r.redactedText); return { pgg: z.items.map((i) => ({ label: i.label, placeholder: i.placeholder, original: i.original })), tekst: z.tekst, origineel: p.tekst }; } },
   { id: "pgg-eigen", groep: "begrijpen", naam: "Eigen labels zoeken", lev: "GLiNER (open)", in: ["tekst"], out: ["pgg"], komt: true,
     uitleg: "Zoeken op labels in gewone taal: BSN, kenteken, zaaknummer. Komt." },
   // Schrijven (taalmodel)

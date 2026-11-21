@@ -97,7 +97,7 @@ doorgaat; anders gaat de tekst ongewijzigd door.
 |---|---|---|---|
 | **Taal van de tekst** | Desert Ant Tongue | tekst → taal (label) | Stelt de taal vast. |
 | **Onderwerpen** | Desert Ant Gist | tekst → onderwerp (label) | Waar de tekst over gaat, gekozen uit 36 vaste onderwerpen. |
-| **Persoonsgegevens maskeren** | Desert Ant Redact | tekst → tekst, lijst | Namen, adressen en nummers worden plaatshouders zoals `[SURNAME_1]`. De gemaskeerde tekst gaat door, zodat latere kralen de gegevens niet meer zien. |
+| **Persoonsgegevens maskeren** | Desert Ant Redact | tekst → tekst, lijst | Namen, adressen en nummers worden plaatshouders zoals `[GIVEN_NAME_1]`. Dezelfde naam krijgt overal hetzelfde nummer. De gemaskeerde tekst gaat door, zodat latere kralen de gegevens niet meer zien. Het model mist weleens een naam: kijk de tekst na voordat je hem verstuurt. |
 | **Haatdragende taal?** | Desert Ant Toxic | tekst → toon (label) | Signaleert haatdragende, beledigende of bedreigende taal, in 35 talen. Een eerste zeef, geen oordeel. |
 | **Actiepunten** | vaste regels, geen model | tekst → tekst | Haalt de zinnen eruit waarin iets moet gebeuren, gevraagd, afgesproken of besloten wordt, met de spreker erbij. |
 | *Eigen labels zoeken* | GLiNER | tekst → lijst | *Komt.* Zoeken op labels in gewone taal: BSN, kenteken, zaaknummer. |
@@ -321,6 +321,7 @@ een gebruiker direct te zien welke versie die draaide.
 | 0.10.4 | Scan lezen: alinea's ook goed op een scheve foto (inspringing gemeten tegen de regels eromheen), koppen als eigen alinea, linkerrand van het tekstblok strakker zodat een stippellijn naast de kolom niet meekomt, afbreekstreepjes in alle vormen weggewerkt |
 | 0.11.0 | Nieuwe kraal *Verslag door Claude* (Anthropic API met eigen sleutel, keuze Opus 5.5 of Fable 5.2, projectcontext en sjabloon met voorbeeld, controle vóór versturen) en *Namen terugzetten* (lokaal); verhaal *Overleg → verslag met Claude*; koppen en tabellen worden in de uitkomst opgemaakt |
 | 0.12.0 | Desert Ant SDK 5.0.0 (was 4.3.0): nieuwe gewichten voor Eye en Moderator, nieuw Shapes-model (meerdere halen, zes tekens). Nieuwe kralen *Stopwoordjes* (Uhm), *Haatdragende taal?* (Toxic) en *Gezichten vervagen* (Face-detector); dezelfde drie als knop in AntBench; Toxic en Uhm kiesbaar in Project |
+| 0.12.1 | Maskeren geeft dezelfde naam overal hetzelfde nummer en maskeert ook vindplaatsen die het model oversloeg; Claude krijgt uitleg over de plaatshouders en schrijft er niet meer over; Word en PDF vermelden in de voetregel dat het verslag via Anthropic is gemaakt; hint op de kaart *Verslag door Claude* dat de namen in *Namen terugzetten* staan |
 
 Verandert `package-lock.json`, zet dan `npmDepsHash` in `default.nix` opnieuw
 (`nix run nixpkgs#prefetch-npm-deps -- package-lock.json`).
