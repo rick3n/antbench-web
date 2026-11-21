@@ -8,6 +8,7 @@
 // al aanwezig is, anders rood. Kralen met status "komt" bestaan nog niet.
 import { BASE, setProgress, setStatus } from "../ui.js";
 import { spoor } from "../spoor.js";
+import { metTijden, leesNamenlijst, maskeerNamenlijst } from "./transcript.js";
 import { model, actions, geheugen, vozApart, decodeAudio, downsample, toWav, imageToPixels, voorOcr, fileToText, fmt, vervaagGezichten, TOXIC_NL } from "../engine.js";
 
 // --- Sleutels van het doorgeefpakket (voor uitleg en kleur) ---------------------
@@ -315,6 +316,8 @@ const bewaard = (k, d = "") => { try { return localStorage.getItem(`antbench.cla
 export const claudeInstelling = {
   sleutel: bewaard("sleutel"), model: CLAUDE_MODELLEN[bewaard("model")] ? bewaard("model") : "claude-opus-5-5",
   context: bewaard("context"), sjabloon: bewaard("sjabloon", VOORBEELD_SJABLOON),
+  woordenlijst: bewaard("woordenlijst"),   // vaktermen en afkortingen: gaan mee naar Claude
+  namenlijst: bewaard("namenlijst"),       // namen van deelnemers: blijven op dit toestel, worden altijd gemaskeerd
   bevestig: null,   // gezet door de pagina: laat zien wat er verstuurd wordt en vraagt akkoord
 };
 export function zetClaude(k, v) { claudeInstelling[k] = v; try { v ? localStorage.setItem(`antbench.claude.${k}`, v) : localStorage.removeItem(`antbench.claude.${k}`); } catch {} }
@@ -322,17 +325,30 @@ export function zetClaude(k, v) { claudeInstelling[k] = v; try { v ? localStorag
 async function claudeVerslag(p) {
   const c = claudeInstelling, m = CLAUDE_MODELLEN[c.model];
   if (!c.sleutel) throw new Error("voer eerst je eigen Anthropic API-sleutel in bij de invoer (hij blijft op dit toestel)");
-  const akkoord = await c.bevestig?.({ tekst: p.tekst, model: m, gemaskeerd: !!p.pgg, aantalPgg: p.pgg?.length ?? 0 });
+  // Tijden erbij, zodat het verslag kan zeggen waar je moet terugluisteren. Dit werkt op de (gemaskeerde) tekst zelf.
+  const verstuur = metTijden(p.tekst, p.woorden);
+  const akkoord = await c.bevestig?.({ tekst: verstuur, model: m, gemaskeerd: !!p.pgg, aantalPgg: p.pgg?.length ?? 0 });
   if (akkoord === false) throw new Error("niet verstuurd: je hebt het versturen afgebroken");
   setStatus(`Verslag laten maken door ${m.naam}…`); setProgress(0.3);
   const systeem = "Je schrijft een verslag van een overleg voor een Nederlandse organisatie, op basis van een transcript. "
     + "Volg de opbouw van het sjabloon; laat een onderdeel weg als het transcript er niets over zegt. Schrijf in helder Nederlands. "
     + "Gebruik alleen wat in het transcript en de context staat en verzin niets. "
+    + "Het transcript komt uit automatische spraakherkenning en bevat fouten: verkeerd verstane woorden, weggevallen woorden en verhaspelde namen. "
+    + "Herstel een woord alleen als de woordenlijst of de context het ondubbelzinnig maakt, en zet dan de tekst uit het transcript er tussen haakjes achter. "
+    + "Vul nooit een reden, datum, bedrag, naam of eigenaar van een actie in die niet letterlijk in het transcript staat. "
+    + "Is een passage niet te volgen, maak er dan geen lopende zin van: schrijf wat wel zeker is en citeer de onduidelijke woorden. "
+    + "Neem getallen, datums en namen letterlijk over. "
+    + "Tijden tussen blokhaken zoals [0:12] geven aan waar in de opname een zin begint; neem ze niet over in de lopende tekst. "
+    + "Sluit af met een kopje '## Te controleren', ook als het sjabloon dat niet noemt: per punt het tijdstip, de letterlijke woorden uit het transcript en wat er onzeker aan is. Laat het kopje weg als er niets te controleren valt. "
+    + "De woordenlijst, als die er is, bevat vaktermen en afkortingen die in dit overleg kunnen voorkomen; gebruik hem om verkeerd verstane woorden te herkennen. "
     + "In het transcript zijn namen en andere persoonsgegevens vervangen door plaatshouders zoals [GIVEN_NAME_1] of [CITY_2]. Dat is bewust gedaan en hoort zo: na afloop worden ze buiten jou om weer ingevuld. "
     + "Behandel elke plaatshouder als de gewone naam die er stond en neem hem letterlijk over, met blokhaken en nummer. Hetzelfde nummer is dezelfde persoon, een ander nummer iemand anders. "
     + "Schrijf nergens iets over de plaatshouders of de maskering zelf: geen opmerking dat namen ontbreken of onbekend zijn, en geen open vraag wie er bedoeld wordt. "
+    + "Onder rollen, als die er zijn, staat welke rol de persoon achter een plaatshouder heeft. "
     + "Geef alleen het verslag, in Markdown, zonder inleiding of nawoord.";
-  const delen = [c.context.trim() ? `<context>\n${c.context.trim()}\n</context>` : "", `<sjabloon>\n${(c.sjabloon.trim() || VOORBEELD_SJABLOON)}\n</sjabloon>`, `<transcript>\n${p.tekst}\n</transcript>`].filter(Boolean);
+  const rollen = (p.rollen ?? []).filter((r) => verstuur.includes(r.placeholder)).map((r) => `${r.placeholder}: ${r.rol}`).join("\n");
+  const delen = [c.context.trim() ? `<context>\n${c.context.trim()}\n</context>` : "", c.woordenlijst.trim() ? `<woordenlijst>\n${c.woordenlijst.trim()}\n</woordenlijst>` : "", rollen ? `<rollen>\n${rollen}\n</rollen>` : "",
+    `<sjabloon>\n${(c.sjabloon.trim() || VOORBEELD_SJABLOON)}\n</sjabloon>`, `<transcript>\n${verstuur}\n</transcript>`].filter(Boolean);
   let r;
   try {
     r = await fetch("https://api.anthropic.com/v1/messages", {
@@ -576,8 +592,11 @@ export const MODULES = [
     uitleg: "Waar de tekst over gaat, uit 36 onderwerpen. Een label erbij; de tekst zelf gaat ongewijzigd door.",
     run: async (p) => ({ onderwerpen: await (await model("gist")).classify(p.tekst, { topK: 5 }) }) },
   { id: "redact", groep: "begrijpen", naam: "Persoonsgegevens maskeren", lev: "Desert Ant Redact", in: ["tekst"], out: ["pgg", "tekst"],
-    uitleg: "Namen, adressen, nummers worden [PLACEHOLDERS]. Dezelfde naam krijgt steeds hetzelfde nummer. De gemaskeerde tekst gaat door naar de volgende kraal.",
-    run: async (p) => { const r = await (await model("redact")).redaction(p.tekst); const z = zelfdeNaamZelfdeNummer(r.items, r.redactedText); return { pgg: z.items.map((i) => ({ label: i.label, placeholder: i.placeholder, original: i.original })), tekst: z.tekst, origineel: p.tekst }; } },
+    uitleg: "Namen, adressen, nummers worden [PLACEHOLDERS]. Dezelfde naam krijgt steeds hetzelfde nummer. Namen uit je eigen namenlijst worden altijd gemaskeerd, ook als het model ze mist. De gemaskeerde tekst gaat door naar de volgende kraal.",
+    run: async (p) => { const r = await (await model("redact")).redaction(p.tekst); const z = zelfdeNaamZelfdeNummer(r.items, r.redactedText);
+      // de eigen namenlijst wint altijd: wat het model miste (of wat verhaspeld in de lijst staat) wordt alsnog gemaskeerd
+      const e = maskeerNamenlijst(z.tekst, z.items.map((i) => ({ label: i.label, placeholder: i.placeholder, original: i.original })), leesNamenlijst(claudeInstelling.namenlijst));
+      return { pgg: e.pgg, tekst: e.tekst, origineel: p.tekst, rollen: e.rollen, uitNamenlijst: e.extra }; } },
   { id: "pgg-eigen", groep: "begrijpen", naam: "Eigen labels zoeken", lev: "GLiNER (open)", in: ["tekst"], out: ["pgg"], komt: true,
     uitleg: "Zoeken op labels in gewone taal: BSN, kenteken, zaaknummer. Komt." },
   // Schrijven (taalmodel)

@@ -117,7 +117,7 @@ doorgaat; anders gaat de tekst ongewijzigd door.
 |---|---|---|---|
 | **Taal van de tekst** | Desert Ant Tongue | tekst → taal (label) | Stelt de taal vast. |
 | **Onderwerpen** | Desert Ant Gist | tekst → onderwerp (label) | Waar de tekst over gaat, gekozen uit 36 vaste onderwerpen. |
-| **Persoonsgegevens maskeren** | Desert Ant Redact | tekst → tekst, lijst | Namen, adressen en nummers worden plaatshouders zoals `[GIVEN_NAME_1]`. Dezelfde naam krijgt overal hetzelfde nummer. De gemaskeerde tekst gaat door, zodat latere kralen de gegevens niet meer zien. Het model mist weleens een naam: kijk de tekst na voordat je hem verstuurt. |
+| **Persoonsgegevens maskeren** | Desert Ant Redact | tekst → tekst, lijst | Namen, adressen en nummers worden plaatshouders zoals `[GIVEN_NAME_1]`. Dezelfde naam krijgt overal hetzelfde nummer. De gemaskeerde tekst gaat door, zodat latere kralen de gegevens niet meer zien. Het model mist weleens een naam: kijk de tekst na voordat je hem verstuurt. Namen uit je eigen *namenlijst* (bij *Verslag door Claude*) worden altijd gemaskeerd, ook als het model ze mist. |
 | **Haatdragende taal?** | Desert Ant Toxic | tekst → toon (label) | Signaleert haatdragende, beledigende of bedreigende taal, in 35 talen. Een eerste zeef, geen oordeel. |
 | **Actiepunten** | vaste regels, geen model | tekst → tekst | Haalt de zinnen eruit waarin iets moet gebeuren, gevraagd, afgesproken of besloten wordt, met de spreker erbij. |
 | *Eigen labels zoeken* | GLiNER | tekst → lijst | *Komt.* Zoeken op labels in gewone taal: BSN, kenteken, zaaknummer. |
@@ -147,9 +147,14 @@ doorgaat; anders gaat de tekst ongewijzigd door.
 
 | Kraal | Model | Krijgt → geeft | Wat hij doet |
 |---|---|---|---|
-| **Verslag door Claude** | Claude Opus 5.5 of Fable 5.2, via de API van Anthropic met je eigen sleutel | tekst → tekst | De enige kraal die tekst het toestel uit stuurt. Claude maakt een verslag volgens jouw sjabloon, met de projectcontext die je meegeeft. Je ziet eerst precies wat er verstuurd wordt en moet dat goedkeuren. |
+| **Verslag door Claude** | Claude Opus 5.5 of Fable 5.2, via de API van Anthropic met je eigen sleutel | tekst → tekst | De enige kraal die tekst het toestel uit stuurt. Claude maakt een verslag volgens jouw sjabloon, met de projectcontext en de woordenlijst die je meegeeft. Het transcript krijgt tijden (`[0:12]`) en het verslag sluit af met *Te controleren*: de plekken waar de spraakherkenning onzeker is, met het tijdstip om terug te luisteren. Je ziet eerst precies wat er verstuurd wordt en moet dat goedkeuren. |
 
 Bij deze kraal hoort **Namen terugzetten** (groep Begrijpen, lokaal): die vult de plaatshouders in het verslag weer in met de echte namen. De lijst met namen is het toestel nooit uit geweest.
+
+Twee velden helpen tegen fouten van de spraakherkenning:
+
+- **Woordenlijst**: vaktermen en afkortingen van het overleg (`serverruimte, stuurgroep, PvA = plan van aanpak`). Gaat mee naar Claude, dus zet er geen namen van personen in.
+- **Namenlijst**: de deelnemers, één per regel, met varianten achter `|` en eventueel een rol achter `=`, bijvoorbeeld `De Vries | De Ves = voorzitter`. Blijft op het toestel. *Persoonsgegevens maskeren* vervangt deze namen altijd door een plaatshouder, ook de verhaspelde varianten; *Namen terugzetten* zet de eerste (juiste) schrijfwijze terug. Claude krijgt alleen de rol bij de plaatshouder.
 
 ### 🤝 Samen
 
@@ -356,6 +361,7 @@ een gebruiker direct te zien welke versie die draaide.
 | 0.16.2 | iPhone en iPad: één model per pagina. De pagina herlaadt vóór elke kraal die een model nodig heeft als er al een geladen is, en gaat vanzelf verder (op de iPhone viel de pagina ook weg bij *Maskeren* na *Sprekers*). *Namen terugzetten* geeft geen fout meer als er niets gemaskeerd hoefde te worden |
 | 0.16.3 | Stond de pagina nog open tijdens een nieuwe uitrol, dan mislukte het laden van een model met *Failed to fetch dynamically imported module*. De ketting bewaart nu de tussenstand, herlaadt de pagina (die dan de nieuwe versie is) en gaat verder bij dezelfde stap; de andere pagina's melden dat verversen nodig is |
 | 0.16.4 | *Stopwoordjes wegknippen*: keuze hoe streng er geknipt wordt (voorzichtig, gewoon, ruim), met *gewoon* als standaard omdat er met *voorzichtig* veel eh's bleven staan; het verhaal *Opname zonder eh's* knipt nu eerst en transcribeert daarna; lange regels in de kaarten breken af op een telefoon |
+| 0.16.5 | *Verslag door Claude*: het transcript gaat met tijden naar Claude en het verslag sluit af met *Te controleren*; strengere opdracht tegen het gladstrijken van verkeerd verstane passages; nieuwe velden *Woordenlijst* (gaat mee naar Claude) en *Namenlijst* (blijft op het toestel: die namen worden altijd gemaskeerd, ook verhaspeld, en Claude krijgt alleen de rol); het kettingverslag zegt niet meer *alles op dit toestel* als er een kraal uit *Buiten het toestel* in zit, maar noemt die zelf gekozen kraal |
 
 Verandert `package-lock.json`, zet dan `npmDepsHash` in `default.nix` opnieuw
 (`nix run nixpkgs#prefetch-npm-deps -- package-lock.json`).
