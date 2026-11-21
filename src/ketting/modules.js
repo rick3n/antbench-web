@@ -384,7 +384,8 @@ export function zelfdeNaamZelfdeNummer(items, tekst) {
 }
 /** Plaatshouders ([SURNAME_1]) weer vervangen door wat er stond; de lijst is het toestel nooit uit geweest. */
 function namenTerug(p) {
-  if (!p.pgg?.length) throw new Error("er is niets om terug te zetten: zet eerst Persoonsgegevens maskeren in de ketting");
+  if (!p.pgg) throw new Error("er is niets om terug te zetten: zet eerst Persoonsgegevens maskeren in de ketting");
+  // Maskeren vond niets (geen namen in de tekst): dan valt er niets terug te zetten en gaat de tekst ongewijzigd door.
   let tekst = p.tekst, n = 0;
   for (const x of p.pgg) { if (!x.placeholder || x.original == null) continue; const delen = tekst.split(x.placeholder); n += delen.length - 1; tekst = delen.join(schoonOrigineel(x.original)); }
   const over = (tekst.match(/\[[A-Z_]+_\d+\]/g) ?? []).length;

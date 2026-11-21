@@ -32,9 +32,12 @@ const loaded = {};
  *   - Voz in de pagina, daarna Who laden: pagina valt weg;
  *   - Voz in een worker: pagina valt weg bij de eerste inferentie;
  *   - eerst Who en Redact laden, dan Voz: "[webgpu] RangeError: Out of memory".
- * Voz alleen werkt er wel. Daarom draait Voz daar in een pagina waar verder niets geladen is, en wordt de pagina
- * daarna herladen: de tussenstand staat in IndexedDB en de ketting gaat verder bij de volgende stap. Herladen is
- * de enige manier die het geheugen zeker teruggeeft. Zie draai() en het vervolg in ketting/main.js.
+ *   - Voz alleen, pagina herladen, Who: gaat goed; daarna Redact (12 MB) laden: pagina valt weg.
+ * Het gaat dus niet om de grootte van Voz alleen: elk tweede model in dezelfde pagina is er één te veel.
+ * Vermoedelijk telt dat elk Desert Ant-model zijn eigen WebAssembly-kern van tientallen MB meebrengt, die de
+ * browser moet compileren. Daarom op die toestellen: één model per pagina. Vóór elke kraal die een model nodig
+ * heeft terwijl de pagina er al een geladen heeft, bewaart de ketting de tussenstand in IndexedDB en herlaadt de
+ * pagina; daarna gaat hij verder bij die kraal. Zie draai() en het vervolg in ketting/main.js.
  *
  * Zuinig met geheugen: op een iPhone of iPad mag een tabblad veel minder geheugen gebruiken dan op Android of een
  * laptop, en gooit Safari de pagina zonder melding weg als het te veel wordt. Dan laden we geen tweede model

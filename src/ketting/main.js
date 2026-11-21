@@ -5,7 +5,10 @@ import JSZip from "jszip";
 import { $, BASE, VERSION, setStatus, setProgress, netSummary } from "../ui.js";
 import { MODULES, GROEPEN, RECEPTEN, SLEUTELS, byId, startpakket, llmInstelling, kiesLlm, LLM_KEUZE, claudeInstelling, zetClaude, CLAUDE_MODELLEN, VOORBEELD_SJABLOON, stemInstelling, STEMMEN, kiesStem, ontgrendelToestelstem, toestelstem } from "./modules.js";
 import { fileToText } from "../engine.js";
-import { fmt, grootte, geheugen, zetZuinig, geefAllesVrij, geladen } from "../engine.js";
+import { fmt, grootte, geheugen, zetZuinig, geefAllesVrij, imageToPixels } from "../engine.js";
+// Kralen zonder model: die kosten geen geheugen en hoeven op een iPhone geen schone pagina.
+const LICHT = new Set(["actiepunten", "claude", "terugzetten"]);
+let vuil = false;   // heeft deze pagina al een model geladen? (begint na elke herlaadbeurt weer op nee)
 
 import { bewaar } from "../export.js";
 import { spoor, spoorStart, spoorVervolg, spoorKlaar, vorigeKeer, spoorWeg, spoorTekst } from "../spoor.js";
@@ -244,23 +247,27 @@ async function draai(vanaf = 0, { vervolg = false } = {}) {
       pakket = invoer.tekst.trim() || (invoer.file && (zwaar || soort(invoer.file) === "tekst")) ? await startpakket(invoer) : {};
       if (invoer.vraag?.trim()) pakket.vraag = invoer.vraag.trim();
       for (const u of eerder) Object.assign(pakket, u.pakket);
+      // Een eerdere kraal kan de foto bewerkt hebben (gezichten vervaagd); ga daarmee verder, niet met het origineel.
+      const bewerkt = [...eerder].reverse().find((u) => u.pakket.bewerktBeeld)?.pakket.bewerktBeeld;
+      if (bewerkt && pakket.beeld) pakket.beeld = { blob: bewerkt, pixels: await imageToPixels(bewerkt) };
     }
   }
   catch (e) { setStatus(`Invoer mislukt: ${e.message}`); spoorKlaar(`invoer mislukt: ${e.message}`); bezig = false; tekenKetting(); return; }
   spoor(`invoer gelezen${pakket.audio ? `: ${fmt(pakket.audio.duration)} audio op ${pakket.audio.sampleRate} Hz` : ""}`);
   for (let i = vanaf; i < ketting.length; i++) {
     const m = byId[ketting[i]]; const tb = performance.now();
-    // iPhone en iPad: het transcriptiemodel past niet samen met een ander model in één tabblad. Staat het nog in
-    // het geheugen, of moet het erbij terwijl er al iets staat, dan bewaren we de tussenstand en herladen we de
+    // iPhone en iPad: één model per pagina. Op een iPhone (iOS 26.5) viel de pagina weg bij het laden van elk
+    // tweede model, ook van een klein model na een klein model (Maskeren, 12 MB, na Sprekers). Heeft deze pagina al
+    // een model geladen en heeft deze kraal er ook een nodig, dan bewaren we de tussenstand en herladen we de
     // pagina; de ketting gaat daarna vanzelf verder bij deze stap. Alleen herladen geeft het geheugen zeker terug.
-    if (geheugen.zuinig && geheugen.apple) {
-      const staat = geladen();
-      if (m.id === "voz" ? staat.some((n) => n !== "voz") : staat.includes("voz")) {
-        spoor(`geheugen vrijmaken: pagina herladen (geladen: ${staat.join(", ")}), daarna verder bij stap ${i + 1}`);
+    if (geheugen.zuinig && geheugen.apple && !LICHT.has(m.id) && !m.komt) {
+      if (vuil) {
+        spoor(`geheugen vrijmaken: pagina herladen, daarna verder bij stap ${i + 1} (${m.id})`);
         setStatus("Geheugen vrijmaken, de pagina herlaadt even…");
         try { await bewaarVervolg({ ketting, invoer, uitkomsten, vanaf: i }); location.reload(); await new Promise(() => {}); }
         catch (e) { spoor(`tussenstand bewaren mislukt: ${e.message ?? e}; verder zonder herladen`); }
       }
+      vuil = true;
     }
     document.querySelectorAll(".bead")[i]?.classList.add("bezig");
     if (m.komt) { uitkomsten[i] = { id: m.id, ok: false, samenvatting: "bestaat nog niet — de ketting stopt hier", pakket: {} }; tekenKetting(); tekenLogboek(i); setStatus(`"${m.naam}" bestaat nog niet; tot hier gerijgd.`); break; }
