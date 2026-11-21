@@ -79,9 +79,27 @@
         <div class="row" id="acties" style="display:none">
           <label class="small">Opslaan als <select id="fmt"><option value="docx">Word (.docx)</option><option value="pdf">PDF</option><option value="md">Markdown (.md)</option></select></label>
           <button id="bewaar-kraal"><span class="alleen-studio">Deze kraal</span><span class="alleen-gebruik">Opslaan</span></button>
+          <button id="opnieuw-claude" style="display:none" title="De eerdere stappen blijven staan; er wordt niet opnieuw getranscribeerd. Handig na het aanpassen van sjabloon of context.">Verslag opnieuw maken</button>
           <button id="bewaar-verslag" class="alleen-studio">Hele verslag</button>
           <button id="download" class="alleen-studio">Alles als ZIP</button>
         </div>
+      </section>
+      <section>
+        <details id="archief">
+          <summary><b>Archief</b> <small id="archief-aantal"></small></summary>
+          <p class="small">Elke run wordt bewaard op dit toestel, met invoer, alle stappen en het resultaat. Er gaat niets naar een server. Let op: de opname en de echte namen staan hier onversleuteld.</p>
+          <div id="archief-lijst" class="small"></div>
+          <div class="row archief-inst">
+            <label class="small"><input type="checkbox" id="archief-aan"> Sessies bewaren</label>
+            <label class="small"><input type="checkbox" id="archief-audio"> Ook de opname bewaren</label>
+            <label class="small">Bewaren voor <select id="archief-dagen"><option value="7">7 dagen</option><option value="30">30 dagen</option><option value="90">90 dagen</option><option value="0">altijd</option></select></label>
+          </div>
+          <div class="row">
+            <button id="archief-import">Sessie uit ZIP…</button><input id="archief-file" type="file" accept=".zip,application/zip">
+            <button id="archief-wis">Alles wissen</button>
+          </div>
+          <p id="archief-ruimte" class="small"></p>
+        </details>
       </section>
     </div>
   </div>

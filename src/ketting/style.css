@@ -147,3 +147,13 @@ body.gebruik .tekstblok.eind { max-height: none; font-size: 1rem; padding: .7rem
 body.gebruik #eindresultaat .stap { margin: 0; }
 body.gebruik .rechts { display: flex; flex-direction: column; } body.gebruik .rechts > section:nth-child(1) { order: 2; } body.gebruik .rechts > section:nth-child(2) { order: 1; } body.gebruik .rechts > section:nth-child(3) { order: 3; }
 body.gebruik #aantal { display: none; } body.gebruik .bead.past-niet .bol { outline: none; }
+
+/* archief */
+#archief > summary { font-size: 1.05rem; opacity: 1; } #archief > summary small { font-weight: 400; opacity: .6; font-size: .8rem; margin-left: .4rem; }
+.sessie { display: flex; flex-wrap: wrap; gap: .3rem .8rem; align-items: center; justify-content: space-between; padding: .5rem 0; border-top: 1px solid var(--line); }
+.sessie .wat { display: flex; flex-direction: column; min-width: 12rem; flex: 1 1 14rem; } .sessie .wat b { font-size: .92rem; opacity: 1; overflow-wrap: anywhere; }
+.sessie .row { margin: 0; flex-wrap: nowrap; } .sessie button { padding: .35rem .7rem; font-size: .88rem; }
+#archief-lijst { opacity: 1; }
+body.gebruik .rechts > section:nth-child(4) { order: 4; }
+body.gebruik .sessie .row { flex-direction: row; } body.gebruik .sessie .row > button { min-height: 2.6rem; flex: 1; font-size: .95rem; }
+body.gebruik .archief-inst > label { display: flex; align-items: center; gap: .4rem; min-height: 2.2rem; }

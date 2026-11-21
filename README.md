@@ -69,6 +69,17 @@ De link is de studiolink met `&u=1` erachter, bijvoorbeeld `…/ketting/#k=voz,w
 
 ![Gebruikersscherm op een telefoon](docs/img/gebruik.png)
 
+### Archief: sessies terughalen
+
+Elke run wordt bewaard in het archief op het toestel (IndexedDB in de browser): de invoer, de ketting, wat elke stap opleverde en het resultaat. Onder *Archief* staat de lijst; *Open* zet een sessie terug zoals hij was, zodat je het resultaat opnieuw kunt opslaan als Word of PDF.
+
+- **Opnieuw vanaf een stap.** Open een stap en kies *Opnieuw vanaf deze stap*, of gebruik *Verslag opnieuw maken*: de eerdere stappen blijven staan. Zo maak je een verslag met een ander sjabloon zonder opnieuw te transcriberen.
+- **ZIP.** Per sessie een bestand met alles erin, als back-up of om naar een ander toestel te verhuizen (*Sessie uit ZIP…*).
+- **Bewaartermijn.** Standaard 30 dagen; daarna wordt een sessie bij het openen van de pagina verwijderd. Instelbaar op 7, 30 of 90 dagen of altijd. *Alles wissen* leegt het archief.
+- **Opname.** De opname gaat standaard mee, zodat je opnieuw kunt transcriberen. Uitvinken scheelt ruimte.
+
+Wat je moet weten: het archief bevat de ongemaskeerde invoer en de echte namen, onversleuteld. De API-sleutel zit er niet in. Browseropslag is geen back-up: de browser mag hem wissen bij ruimtegebrek, Safari doet dat na zeven dagen niet gebruiken (tenzij de app op het beginscherm staat), en het archief hoort bij het webadres. Bewaar wat belangrijk is als ZIP.
+
 ## De kralen
 
 *Krijgt → geeft* zegt wat een kraal uit het pakket nodig heeft en wat hij
@@ -331,6 +342,7 @@ een gebruiker direct te zien welke versie die draaide.
 | 0.12.0 | Desert Ant SDK 5.0.0 (was 4.3.0): nieuwe gewichten voor Eye en Moderator, nieuw Shapes-model (meerdere halen, zes tekens). Nieuwe kralen *Stopwoordjes* (Uhm), *Haatdragende taal?* (Toxic) en *Gezichten vervagen* (Face-detector); dezelfde drie als knop in AntBench; Toxic en Uhm kiesbaar in Project |
 | 0.12.1 | Maskeren geeft dezelfde naam overal hetzelfde nummer en maskeert ook vindplaatsen die het model oversloeg; Claude krijgt uitleg over de plaatshouders en schrijft er niet meer over; Word en PDF vermelden in de voetregel dat het verslag via Anthropic is gemaakt; hint op de kaart *Verslag door Claude* dat de namen in *Namen terugzetten* staan |
 | 0.13.0 | Gebruikersscherm voor de telefoon: een ketting als eenvoudige pagina met alleen invoer, start en resultaat, onder elkaar (*Deel voor gebruikers* in de studio); het paneel van *Verslag door Claude* klapt in zodra de sleutel is ingesteld |
+| 0.14.0 | Archief: elke run wordt op het toestel bewaard en is terug te halen met invoer, stappen en resultaat; opnieuw draaien vanaf een stap (*Verslag opnieuw maken*); ZIP-export en -import per sessie; bewaartermijn (standaard 30 dagen) en *Alles wissen* |
 
 Verandert `package-lock.json`, zet dan `npmDepsHash` in `default.nix` opnieuw
 (`nix run nixpkgs#prefetch-npm-deps -- package-lock.json`).

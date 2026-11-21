@@ -7,6 +7,7 @@ import { MODULES, GROEPEN, RECEPTEN, SLEUTELS, byId, startpakket, llmInstelling,
 import { fileToText } from "../engine.js";
 import { fmt, grootte } from "../engine.js";
 import { bewaar } from "../export.js";
+import { archiefInstelling, zetArchief, bewaarSessie, haalSessie, wisSessie, wisAlles, lijst, ruimOp, ruimte, alsZip, uitZip } from "./archief.js";
 
 const ICOON = { lezen: "📄", luisteren: "🎙️", kijken: "📷", begrijpen: "🔍", schrijven: "✍️", vertalen: "🌐", spreken: "🔊", samen: "🤝", buiten: "☁️" };
 const kleur = Object.fromEntries(GROEPEN.map(([id, , c]) => [id, c]));
@@ -189,7 +190,7 @@ function samenvatting(m, d, pakket) {
   if (d.toon) return d.toon.letOp ? `let op: ${d.toon.soort.join(", ")}` : "geen haatdragende taal";
   if (d.gezichten != null) return d.gezichten ? `${d.gezichten} ${d.gezichten === 1 ? "gezicht" : "gezichten"} vervaagd` : "geen gezichten gevonden";
   if (d.claude) return `${telWoorden(d.tekst)} woorden · ${d.claude.model}`;
-  if (d.teruggezet != null) return `${d.teruggezet} plaatshouders ingevuld`;
+  if (d.teruggezet != null) return `${d.teruggezet} ${d.teruggezet === 1 ? "plaatshouder" : "plaatshouders"} ingevuld`;
   if (d.actiepunten != null) return d.actiepunten ? `${d.actiepunten} ${d.actiepunten === 1 ? "actiepunt" : "actiepunten"}` : "geen actiepunten gevonden";
   if (d.zekerheid != null) return `${telWoorden(d.tekst)} woorden · ${d.zekerheid} % zeker`;
   if (d.overgeslagen) return `overgeslagen: ${d.overgeslagen}`;
@@ -206,16 +207,30 @@ function samenvatting(m, d, pakket) {
   return "klaar";
 }
 
-$("go").onclick = async () => {
+$("go").onclick = () => draai(0);
+/** Rijgt de ketting. Met vanaf > 0 blijven de eerdere stappen staan en gaat het verder met wat die opleverden. */
+async function draai(vanaf = 0) {
   if (bezig) return;
   if (ketting.some((id) => byId[id].extern) && !claudeInstelling.sleutel) { $("claude-paneel").open = true; $("claude-sleutel").focus(); setStatus("Voer eerst je eigen Anthropic API-sleutel in; hij blijft op dit toestel."); return; }
   if (claudeInstelling.sleutel) $("claude-paneel").open = false;
-  bezig = true; uitkomsten = []; eindpakket = null; gekozenKraal = null; tekenKetting(); tekenLogboek(); $("go").disabled = true; $("progress").classList.add("on");
+  if (uitkomsten.slice(0, vanaf).some((u) => !u?.ok)) vanaf = 0;
+  const eerder = uitkomsten.slice(0, vanaf);
+  bezig = true; uitkomsten = eerder; eindpakket = null; gekozenKraal = null; tekenKetting(); tekenLogboek(); $("go").disabled = true; $("progress").classList.add("on");
   const t0 = performance.now(); performance.clearResourceTimings();
   let pakket;
-  try { setStatus("Invoer lezen…"); pakket = await startpakket(invoer); }
+  try {
+    setStatus("Invoer lezen…");
+    const zwaar = ketting.slice(vanaf).some((id) => byId[id].in.some((x) => x === "audio" || x === "beeld"));
+    if (!vanaf) pakket = await startpakket(invoer);
+    else {
+      if (zwaar && !invoer.file) throw new Error("de opname of foto van deze sessie is niet bewaard; begin opnieuw met nieuwe invoer");
+      pakket = invoer.tekst.trim() || (invoer.file && (zwaar || soort(invoer.file) === "tekst")) ? await startpakket(invoer) : {};
+      if (invoer.vraag?.trim()) pakket.vraag = invoer.vraag.trim();
+      for (const u of eerder) Object.assign(pakket, u.pakket);
+    }
+  }
   catch (e) { setStatus(`Invoer mislukt: ${e.message}`); bezig = false; tekenKetting(); return; }
-  for (let i = 0; i < ketting.length; i++) {
+  for (let i = vanaf; i < ketting.length; i++) {
     const m = byId[ketting[i]]; const tb = performance.now();
     document.querySelectorAll(".bead")[i]?.classList.add("bezig");
     if (m.komt) { uitkomsten[i] = { id: m.id, ok: false, samenvatting: "bestaat nog niet — de ketting stopt hier", pakket: {} }; tekenKetting(); tekenLogboek(i); setStatus(`"${m.naam}" bestaat nog niet; tot hier gerijgd.`); break; }
@@ -244,7 +259,11 @@ $("go").onclick = async () => {
   eindpakket = pakket; tekenLogboek();
   if (gebruik) $("eindresultaat").scrollIntoView({ block: "start", behavior: "smooth" });
   window.__pakket = pakket;
-};
+  if (archiefInstelling.aan && geslaagd) {
+    try { const c = claudeInstelling; await bewaarSessie({ titel: `${receptVan()?.naam ?? ketting.map((k) => byId[k].naam).join(" → ")} · ${invoer.file ? basisnaam() : invoer.tekst.trim().slice(0, 40).replace(/\s+\S*$/, "").replace(/[.,;:!?]+$/, "") + "…"}`, ketting, invoer, uitkomsten, eindpakket: pakket, versie: VERSION, claude: ketting.some((id) => byId[id].extern) ? { model: c.model, context: c.context, sjabloon: c.sjabloon } : null }); tekenArchief(); }
+    catch (e) { console.error("archief", e); setStatus(`${$("status").textContent} Bewaren in het archief lukte niet: ${e.message ?? e}`); }
+  }
+}
 
 // --- Uitkomst ----------------------------------------------------------------------------
 const esc = (t) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -302,6 +321,9 @@ function tekenLogboek(nieuwste = null) {
     const p = document.createElement("div"); p.className = "door"; p.textContent = [eindpakket.tekst != null ? `tekst (${telWoorden(eindpakket.tekst)} woorden)` : null, ...l, eindpakket.spraak ? "spraak (wav)" : null].filter(Boolean).join(" · ") || "niets"; e.append(p); box.append(e);
   }
   $("acties").style.display = uitkomsten.some((u) => u?.ok) ? "" : "none";
+  const ie = ketting.findIndex((id) => byId[id].extern);
+  $("opnieuw-claude").style.display = !bezig && ie > 0 && uitkomsten.slice(0, ie).length === ie && uitkomsten.slice(0, ie).every((u) => u?.ok) ? "" : "none";
+  $("opnieuw-claude").onclick = () => draai(ie);
   tekenEind();
   if (nieuwste != null && !gebruik) box.children[nieuwste]?.scrollIntoView({ block: "nearest", behavior: "smooth" });
 }
@@ -354,6 +376,7 @@ function kaart(i) {
   if (d.uitgesneden || d.weggelaten) { const w = document.createElement("div"); w.className = "kreeg"; w.textContent = [d.uitgesneden ? "Alleen het tekstblok gelezen; wat eromheen stond is weggelaten." : "", d.weggelaten ? `${d.weggelaten} losse tekens aan de rand weggelaten.` : ""].filter(Boolean).join(" "); k.append(w); }
   if (open && d.ruw && (d.uitgesneden || d.weggelaten)) { const det = document.createElement("details"); det.innerHTML = `<summary>Wat de OCR op de hele foto las</summary>`; const p = document.createElement("div"); p.className = "tekstblok"; p.innerHTML = md(d.ruw); det.append(p); voeg("", det); }
   if (open && d.origineel) { const det = document.createElement("details"); det.innerHTML = `<summary>Wat deze kraal binnenkreeg</summary>`; const p = document.createElement("div"); p.className = "tekstblok"; p.innerHTML = md(d.origineel); det.append(p); voeg("", det); }
+  if (open && i > 0 && !bezig) { const b = document.createElement("button"); b.className = "meer"; b.textContent = `Opnieuw vanaf deze stap`; b.title = "De stappen hiervoor blijven staan; handig na het aanpassen van het sjabloon of de context"; b.onclick = (e) => { e.stopPropagation(); draai(i); }; voeg("", b); }
   if (u.door) { const p = document.createElement("div"); p.className = "door" + (u.nieuw ? " nieuw" : ""); p.textContent = `Geeft door: ${u.door}${u.labels?.length ? ` · labels: ${u.labels.join(", ")}` : ""}`; k.append(p); }
   return k;
 }
@@ -410,6 +433,52 @@ const deel = async (url, wat) => { if (navigator.share) await navigator.share({ 
 $("deel").onclick = () => deel(link(true), "Gebruikerslink");
 $("deel-studio").onclick = () => deel(link(false), "Studiolink");
 $("wis").onclick = () => { ketting = []; uitkomsten = []; eindpakket = null; tekenKetting(); tekenLogboek(); bewaarHash(); };
+
+// --- Archief: sessies op dit toestel -----------------------------------------------------------
+const dag = (t) => new Date(t).toLocaleString("nl-NL", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+/** Knop die pas bij de tweede tik iets doet; geen dialoogvenster nodig. */
+function zeker(knop, doe) { const tekst = knop.textContent; let klaar = false; knop.onclick = () => { if (klaar) { klaar = false; knop.textContent = tekst; knop.classList.remove("rec"); doe(); return; } klaar = true; knop.textContent = "Zeker? Tik nog eens"; knop.classList.add("rec"); setTimeout(() => { if (klaar) { klaar = false; knop.textContent = tekst; knop.classList.remove("rec"); } }, 4000); }; }
+async function tekenArchief() {
+  const box = $("archief-lijst"); let alle;
+  try { alle = await lijst(); } catch (e) { box.textContent = `Het archief is op dit toestel niet beschikbaar (${e.message ?? e}).`; return; }
+  $("archief-aantal").textContent = alle.length ? `${alle.length} ${alle.length === 1 ? "sessie" : "sessies"} · ${grootte(alle.reduce((s, x) => s + (x.bytes ?? 0), 0))}` : "leeg";
+  box.replaceChildren();
+  if (!alle.length) { box.textContent = "Nog geen sessies. Na elke run komt hij hier te staan."; return; }
+  for (const s of alle) {
+    const r = document.createElement("div"); r.className = "sessie";
+    const eind = [...s.uitkomsten].reverse().find((u) => u?.ok);
+    const t = document.createElement("div"); t.className = "wat"; t.innerHTML = `<b></b><span class="small"></span>`;
+    t.firstChild.textContent = s.titel; t.lastChild.textContent = `${dag(s.datum)} · ${eind?.samenvatting ?? "niet afgemaakt"} · ${grootte(s.bytes ?? 0)}${s.invoer.nietBewaard ? " · zonder opname" : ""}`;
+    const k = document.createElement("div"); k.className = "row";
+    const o = document.createElement("button"); o.textContent = "Open"; o.onclick = () => openSessie(s.id);
+    const z = document.createElement("button"); z.textContent = "ZIP"; z.title = "Deze sessie als bestand bewaren, als back-up of voor een ander toestel"; z.onclick = async () => { const a = document.createElement("a"); a.href = URL.createObjectURL(await alsZip(await haalSessie(s.id))); a.download = `sessie-${new Date(s.datum).toISOString().slice(0, 16).replace(/[:T]/g, "-")}.zip`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 60_000); };
+    const w = document.createElement("button"); w.textContent = "Wis"; zeker(w, async () => { await wisSessie(s.id); tekenArchief(); });
+    k.append(o, z, w); r.append(t, k); box.append(r);
+  }
+  const e = await ruimte(); if (e) $("archief-ruimte").textContent = `Opslag van deze site: ${grootte(e.gebruikt)} gebruikt${e.blijvend ? "" : "; de browser mag dit bij ruimtegebrek wissen, dus bewaar wat belangrijk is ook als ZIP"}.`;
+}
+/** Een bewaarde sessie terugzetten: ketting, invoer, alle stappen en het resultaat. */
+async function openSessie(id) {
+  if (bezig) return; const s = await haalSessie(id); if (!s) return;
+  ketting = s.ketting.filter((k) => byId[k]); invoer = { file: s.invoer.file ?? null, tekst: s.invoer.tekst ?? "", vraag: s.invoer.vraag ?? "" };
+  $("tekst").value = invoer.tekst; $("vraag").value = invoer.vraag;
+  const a = $("preview-audio"), img = $("preview-beeld"); a.style.display = img.style.display = "none";
+  if (invoer.file && soort(invoer.file) === "audio") { a.src = URL.createObjectURL(invoer.file); a.style.display = ""; }
+  if (invoer.file && soort(invoer.file) === "beeld") { img.src = URL.createObjectURL(invoer.file); img.style.display = ""; }
+  $("invoer-info").textContent = `sessie van ${dag(s.datum)}${invoer.file ? ` · ${invoer.file.name}` : s.invoer.nietBewaard ? " · opname niet bewaard" : ""}`;
+  uitkomsten = s.uitkomsten.map((u) => u && { ...u }); eindpakket = s.eindpakket; gekozenKraal = null;
+  history.replaceState(null, "", `#k=${ketting.join(",")}${gebruik ? "&u=1" : ""}`); zetModus();
+  tekenKetting(); tekenLogboek();
+  setStatus(`Sessie van ${dag(s.datum)} teruggehaald${s.versie && s.versie !== VERSION ? ` (gemaakt met ${s.versie})` : ""}.`);
+  (gebruik ? $("eindresultaat") : $("uitkomst")).scrollIntoView({ block: "start", behavior: "smooth" });
+}
+$("archief-aan").checked = archiefInstelling.aan; $("archief-aan").onchange = (e) => zetArchief("aan", e.target.checked);
+$("archief-audio").checked = archiefInstelling.audio; $("archief-audio").onchange = (e) => zetArchief("audio", e.target.checked);
+$("archief-dagen").value = String(archiefInstelling.dagen); $("archief-dagen").onchange = async (e) => { zetArchief("dagen", Number(e.target.value)); await ruimOp(); tekenArchief(); };
+$("archief-import").onclick = () => $("archief-file").click();
+$("archief-file").onchange = async (e) => { const f = e.target.files?.[0]; e.target.value = ""; if (!f) return; try { const s = await uitZip(f); await tekenArchief(); setStatus(`Sessie "${s.titel}" toegevoegd aan het archief.`); } catch (x) { setStatus(`Importeren mislukt: ${x.message ?? x}`); } };
+zeker($("archief-wis"), async () => { await wisAlles(); tekenArchief(); setStatus("Het archief op dit toestel is leeg."); });
+ruimOp().catch(() => 0).then((n) => { tekenArchief(); if (n) setStatus(`${n} ${n === 1 ? "sessie" : "sessies"} ouder dan ${archiefInstelling.dagen} dagen uit het archief verwijderd.`); });
 
 // --- Instellingen --------------------------------------------------------------------------
 $("llm").value = llmInstelling.maat; $("llm").onchange = (e) => kiesLlm(e.target.value); llmInstelling.luister = (m) => { $("llm").value = m; };
