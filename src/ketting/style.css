@@ -157,3 +157,8 @@ body.gebruik #aantal { display: none; } body.gebruik .bead.past-niet .bol { outl
 body.gebruik .rechts > section:nth-child(4) { order: 4; }
 body.gebruik .sessie .row { flex-direction: row; } body.gebruik .sessie .row > button { min-height: 2.6rem; flex: 1; font-size: .95rem; }
 body.gebruik .archief-inst > label { display: flex; align-items: center; gap: .4rem; min-height: 2.2rem; }
+
+/* spoor: melding na een weggevallen pagina */
+#spoor { border: 2px solid var(--fout); border-radius: .8rem; padding: .7rem .9rem; margin: .6rem 0 1rem; background: color-mix(in srgb, var(--fout) 8%, transparent); }
+#spoor p { margin: .3rem 0; font-size: .92rem; } #spoor pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: .74rem; max-height: 22rem; overflow: auto; margin: .4rem 0 0; }
+body.gebruik #stem-rij label { display: flex; flex-direction: column; gap: .2rem; } body.gebruik #stem { width: 100%; font: inherit; padding: .5rem; }

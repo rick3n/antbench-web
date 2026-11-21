@@ -1,5 +1,6 @@
 // Gedeelde UI-staat: status, voortgang, resultaatvak, kopiëren/delen/downloaden.
 
+import { spoor } from "./spoor.js";
 export const BASE = import.meta.env.BASE_URL;   // "/antbench/"
 export const VERSION = `AntBench v${__APP_VERSION__}`;
 export const $ = (id) => document.getElementById(id);
@@ -70,6 +71,7 @@ performance.setResourceTimingBufferSize?.(10000);
 const swLog = [];   // { t, type, url } uit de service worker
 navigator.serviceWorker?.addEventListener("message", (e) => {
   if (e.data?.type === "gewist") { setStatus("Modelcache gewist."); cacheInfo(); }
+  else if (e.data?.type === "net" && (e.data.ok === false || e.data.status >= 400)) { spoor(`netwerk: ${e.data.ok === false ? "mislukt" : `HTTP ${e.data.status}`} ${String(e.data.url).replace(/^https?:\/\//, "").slice(0, 120)}`); swLog.push({ t: performance.now(), type: e.data.type, url: e.data.url, ok: e.data.ok !== false }); }
   else if (e.data?.type) swLog.push({ t: performance.now(), type: e.data.type, url: e.data.url, ok: e.data.ok !== false });
 });
 function hostList(urls) {

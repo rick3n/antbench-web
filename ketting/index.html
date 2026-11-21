@@ -15,6 +15,13 @@
 
   <div id="verhalen" class="alleen-studio" title="Kant-en-klare kettingen: klik en de kralen liggen klaar"></div>
 
+  <div id="spoor" style="display:none">
+    <b>De vorige keer viel de pagina weg tijdens het rijgen.</b>
+    <p>Laatste wat gelukt is: <span id="spoor-laatste"></span>. Op een iPhone of iPad komt dat meestal door te weinig geheugen. Hieronder staat waar het stopte; er staat geen tekst of naam uit je invoer in. Stuur het door, dan kan het verholpen worden.</p>
+    <div class="row"><button id="spoor-deel" class="primary">Deel dit spoor</button><button id="spoor-kopie">Kopieer</button><button id="spoor-sluit">Sluit</button></div>
+    <details><summary>Bekijk het spoor</summary><pre id="spoor-tekst"></pre></details>
+  </div>
+
   <div class="werkplaats">
     <aside class="alleen-studio">
       <h2 style="font-size:1rem;margin:.2rem 0 .5rem">Voorraad <small class="small">sleep of tik</small></h2>
@@ -41,6 +48,7 @@
         </div>
         <textarea id="tekst" placeholder="…of typ of plak hier tekst"></textarea>
         <input id="vraag" type="text" placeholder="Vraag aan het document, bijvoorbeeld: wanneer moet de aanvraag binnen zijn?" style="display:none">
+        <div id="stem-rij" class="row" style="display:none"><label class="small">Voorleesstem <select id="stem"></select></label></div>
         <details id="claude-paneel" style="display:none">
           <summary class="paneelkop">☁️ Verslag door Claude <small id="claude-kort"></small></summary>
           <p class="small" style="margin:.3rem 0">Deze kraal stuurt tekst naar Anthropic; de rest van de ketting blijft op dit toestel.</p>

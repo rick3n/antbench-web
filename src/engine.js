@@ -3,6 +3,7 @@
 // één keer geladen wordt.
 import JSZip from "jszip";
 import { BASE, setProgress, setStatus } from "./ui.js";
+import { spoor } from "./spoor.js";
 
 const litert = () => ({ litertWasmDir: `${BASE}litert/`, onProgress: setProgress });
 
@@ -39,7 +40,7 @@ export function zetZuinig(aan) { geheugen.zuinig = aan; try { localStorage.setIt
 export async function geefVrij(name) {
   const m = loaded[name]; if (!m || typeof m.dispose !== "function") return false;
   delete loaded[name];
-  try { await m.dispose(); } catch (e) { console.warn("vrijgeven", name, e); }
+  try { await m.dispose(); spoor(`model ${name}: vrijgegeven`); } catch (e) { console.warn("vrijgeven", name, e); spoor(`model ${name}: vrijgeven mislukt (${e.message})`); }
   return true;
 }
 /**
@@ -48,24 +49,27 @@ export async function geefVrij(name) {
  */
 export function vozApart(audio) {
   return new Promise((ok, fout) => {
+    spoor(`voz apart: worker starten (${(audio.samples.length / audio.sampleRate).toFixed(0)} s audio)`);
     const w = new Worker(new URL("./voz-worker.js", import.meta.url), { type: "module" });
+    let stap = -1; const mijlpaal = (wat, f) => { const s = Math.floor(f * 4); if (s !== stap) { stap = s; spoor(`voz apart: ${wat} ${Math.round(f * 100)} %`); } };
     const heel = audio.samples.byteOffset === 0 && audio.samples.byteLength === audio.samples.buffer.byteLength;
     const samples = heel ? audio.samples : audio.samples.slice();
-    const klaar = (f, v) => { w.terminate(); f(v); };
+    const klaar = (f, v) => { w.terminate(); spoor("voz apart: worker beëindigd"); f(v); };
     w.onmessage = ({ data: d }) => {
-      if (d.t === "laden") { setStatus("voz: model laden…"); setProgress(d.f); }
-      else if (d.t === "voortgang") { setStatus("Transcriberen…"); setProgress(d.f); }
+      if (d.t === "info") spoor(`voz apart: ${d.m}`);
+      else if (d.t === "laden") { setStatus("voz: model laden…"); setProgress(d.f); mijlpaal("model laden", d.f); }
+      else if (d.t === "voortgang") { setStatus("Transcriberen…"); setProgress(d.f); mijlpaal("transcriberen", d.f); }
       else if (d.t === "klaar") { if (heel) audio.samples = d.samples; klaar(ok, { text: d.text, words: d.words }); }
-      else if (d.t === "fout") { if (heel && d.samples) audio.samples = d.samples; klaar(fout, new Error(d.m)); }
+      else if (d.t === "fout") { spoor(`voz apart: fout: ${d.m}`); if (heel && d.samples) audio.samples = d.samples; klaar(fout, new Error(d.m)); }
     };
-    w.onerror = (e) => klaar(fout, new Error(`transcriberen in de achtergrond mislukte: ${e.message || "onbekende fout"}`));
+    w.onerror = (e) => { spoor(`voz apart: worker-fout: ${e.message}`); klaar(fout, new Error(`transcriberen in de achtergrond mislukte: ${e.message || "onbekende fout"}`)) };
     w.postMessage({ samples, sampleRate: audio.sampleRate, wasmDir: new URL(`${BASE}ort/`, location.href).href }, [samples.buffer]);
   });
 }
 /** Alle geladen modellen vrijgeven; geeft de namen terug. */
 export async function geefAllesVrij() { const namen = Object.keys(loaded); for (const n of namen) await geefVrij(n); return namen; }
 export async function model(name) {
-  if (!loaded[name]) { setStatus(`${name}: model laden (eerste keer)…`); loaded[name] = await loaders[name](); }
+  if (!loaded[name]) { setStatus(`${name}: model laden (eerste keer)…`); spoor(`model ${name}: laden`); loaded[name] = await loaders[name](); spoor(`model ${name}: geladen`); }
   return loaded[name];
 }
 
@@ -121,7 +125,12 @@ export async function docxToText(buf) {
 
 // --- Audio ----------------------------------------------------------------------
 
-/** Blob → { samples: Float32Array (mono), sampleRate, duration }. */
+/**
+ * Blob → { samples: Float32Array (mono), sampleRate, duration }, op de samplerate van de opname zelf.
+ * Meteen terugbrengen naar 16 kHz zou op een telefoon geheugen schelen (een uur: 230 in plaats van 690 MB), maar
+ * is twee keer geprobeerd en veranderde wat Who hoort: via AudioContext({ sampleRate }) vond Who geen sprekers
+ * meer, via downsample() hieronder juist een spreker te veel. Pas doen na een vergelijking op echte opnames.
+ */
 export async function decodeAudio(blob) {
   const ctx = new AudioContext();
   try {

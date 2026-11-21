@@ -39,7 +39,7 @@ self.addEventListener("fetch", (e) => {
     e.respondWith((async () => {
       const cache = await caches.open(CACHE);
       try {
-        const res = await fetch(req); tell({ type: "net", url: req.url, ok: true });
+        const res = await fetch(req); tell({ type: "net", url: req.url, ok: true, status: res.status });
         if (res.ok && req.mode === "navigate") e.waitUntil(cache.put(new URL(u.pathname, u.origin), res.clone()).catch(() => {}));
         else if (res.ok) e.waitUntil(cache.put(req, res.clone()).catch(() => {}));
         return res;
@@ -55,7 +55,7 @@ self.addEventListener("fetch", (e) => {
   // Overige verzoeken (o.a. telemetrie naar events.desertant.com): doorlaten, maar
   // wel melden of ze slaagden — offline mislukken ze, en dat is precies het bewijs.
   if (!cacheable) {
-    e.respondWith(fetch(req).then((res) => { tell({ type: "net", url: req.url, ok: true }); return res; },
+    e.respondWith(fetch(req).then((res) => { tell({ type: "net", url: req.url, ok: true, status: res.status }); return res; },
                                   (err) => { tell({ type: "net", url: req.url, ok: false }); throw err; }));
     return;
   }
@@ -64,7 +64,7 @@ self.addEventListener("fetch", (e) => {
     const hit = await cache.match(req, { ignoreVary: true });
     if (hit) { tell({ type: "cache", url: req.url }); return hit; }
     let res;
-    try { res = await fetch(req); tell({ type: "net", url: req.url, ok: true }); }
+    try { res = await fetch(req); tell({ type: "net", url: req.url, ok: true, status: res.status }); }
     catch (err) { tell({ type: "net", url: req.url, ok: false }); throw err; }
     if (res.ok && (res.type === "basic" || res.type === "cors")) {
       // Opslag kan vol zijn (Voz is 349 MB); dan gewoon zonder cache verder.

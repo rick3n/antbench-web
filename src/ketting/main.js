@@ -3,10 +3,11 @@
 import "./style.css";
 import JSZip from "jszip";
 import { $, BASE, VERSION, setStatus, setProgress, netSummary } from "../ui.js";
-import { MODULES, GROEPEN, RECEPTEN, SLEUTELS, byId, startpakket, llmInstelling, kiesLlm, LLM_KEUZE, claudeInstelling, zetClaude, CLAUDE_MODELLEN, VOORBEELD_SJABLOON } from "./modules.js";
+import { MODULES, GROEPEN, RECEPTEN, SLEUTELS, byId, startpakket, llmInstelling, kiesLlm, LLM_KEUZE, claudeInstelling, zetClaude, CLAUDE_MODELLEN, VOORBEELD_SJABLOON, stemInstelling, STEMMEN, kiesStem, ontgrendelToestelstem, toestelstem } from "./modules.js";
 import { fileToText } from "../engine.js";
 import { fmt, grootte, geheugen, zetZuinig, geefAllesVrij } from "../engine.js";
 import { bewaar } from "../export.js";
+import { spoor, spoorStart, spoorKlaar, vorigeKeer, spoorWeg, spoorTekst } from "../spoor.js";
 import { archiefInstelling, zetArchief, bewaarSessie, haalSessie, wisSessie, wisAlles, lijst, ruimOp, ruimte, alsZip, uitZip } from "./archief.js";
 
 const ICOON = { lezen: "📄", luisteren: "🎙️", kijken: "📷", begrijpen: "🔍", schrijven: "✍️", vertalen: "🌐", spreken: "🔊", samen: "🤝", buiten: "☁️" };
@@ -71,6 +72,7 @@ function tekenKetting() {
   });
   const eind = document.createElement("div"); eind.className = "eindkraal"; eind.innerHTML = `<span class="bol">🎁</span><span class="naam">uitkomst</span>`; lane.append(eind);
   $("vraag").style.display = ketting.some((id) => byId[id].vraag) ? "" : "none";
+  $("stem-rij").style.display = ketting.some((id) => byId[id].stem) ? "" : "none";
   // gebruikersscherm: alleen de invoer tonen die deze ketting nodig heeft
   const nodig = gebruik ? byId[ketting[0]]?.in.find((x) => ["audio", "beeld", "tekst"].includes(x)) : null;
   $("rec").style.display = !nodig || nodig === "audio" ? "" : "none"; $("cam").style.display = !nodig || nodig === "beeld" ? "" : "none"; $("tekst").style.display = !nodig || nodig === "tekst" ? "" : "none";
@@ -196,6 +198,7 @@ function samenvatting(m, d, pakket) {
   if (d.overgeslagen) return `overgeslagen: ${d.overgeslagen}`;
   if (d.tekst != null && m.out.includes("tekst")) return `${d.tekst.split(/\s+/).filter(Boolean).length} woorden`;
   if (d.spraak) return `${grootte(d.spraak.size)} spraak`;
+  if (d.voorgelezen) return `voorgelezen · ${d.voorgelezen.stem}`;
   if (d.sprekers) return `${d.sprekerAantal} sprekers`;
   if (d.taal) return `taal: ${d.taal}`;
   if (d.onderwerpen) return d.onderwerpen.slice(0, 2).map((t) => t.name).join(", ");
@@ -213,10 +216,12 @@ async function draai(vanaf = 0) {
   if (bezig) return;
   if (ketting.some((id) => byId[id].extern) && !claudeInstelling.sleutel) { $("claude-paneel").open = true; $("claude-sleutel").focus(); setStatus("Voer eerst je eigen Anthropic API-sleutel in; hij blijft op dit toestel."); return; }
   if (claudeInstelling.sleutel) $("claude-paneel").open = false;
+  if (ketting.some((id) => byId[id].stem)) ontgrendelToestelstem();
   if (uitkomsten.slice(0, vanaf).some((u) => !u?.ok)) vanaf = 0;
   const eerder = uitkomsten.slice(0, vanaf);
   bezig = true; uitkomsten = eerder; eindpakket = null; gekozenKraal = null; tekenKetting(); tekenLogboek(); $("go").disabled = true; $("progress").classList.add("on");
   const t0 = performance.now(); performance.clearResourceTimings();
+  await spoorStart(`${VERSION} · ketting ${ketting.join(",")}${vanaf ? ` vanaf stap ${vanaf + 1}` : ""} · zuinig ${geheugen.zuinig ? "aan" : "uit"} · invoer ${invoer.file ? `${soort(invoer.file)} ${grootte(invoer.file.size)} ${invoer.file.type}` : "getypte tekst"}`);
   let pakket;
   try {
     setStatus("Invoer lezen…");
@@ -229,7 +234,8 @@ async function draai(vanaf = 0) {
       for (const u of eerder) Object.assign(pakket, u.pakket);
     }
   }
-  catch (e) { setStatus(`Invoer mislukt: ${e.message}`); bezig = false; tekenKetting(); return; }
+  catch (e) { setStatus(`Invoer mislukt: ${e.message}`); spoorKlaar(`invoer mislukt: ${e.message}`); bezig = false; tekenKetting(); return; }
+  spoor(`invoer gelezen${pakket.audio ? `: ${fmt(pakket.audio.duration)} audio op ${pakket.audio.sampleRate} Hz` : ""}`);
   for (let i = vanaf; i < ketting.length; i++) {
     const m = byId[ketting[i]]; const tb = performance.now();
     document.querySelectorAll(".bead")[i]?.classList.add("bezig");
@@ -237,10 +243,10 @@ async function draai(vanaf = 0) {
     const mist = m.in.filter((s) => pakket[s] == null);
     if (mist.length) { uitkomsten[i] = { id: m.id, ok: false, samenvatting: `mist ${mist.map((s) => SLEUTELS[s]).join(", ")}`, pakket: {} }; tekenKetting(); tekenLogboek(i); setStatus(`"${m.naam}" mist ${mist.map((s) => SLEUTELS[s]).join(", ")}; de ketting stopt hier.`); break; }
     try {
-      setStatus(`${i + 1}/${ketting.length} ${m.naam}…`); setProgress(0);
+      setStatus(`${i + 1}/${ketting.length} ${m.naam}…`); setProgress(0); spoor(`stap ${i + 1} ${m.id}: begin`);
       const kreeg = m.in.map((k) => beschrijf(k, pakket)).join(" + "), tekstVoor = pakket.tekst;
       const d = await m.run(pakket);
-      Object.assign(pakket, d);
+      Object.assign(pakket, d); spoor(`stap ${i + 1} ${m.id}: klaar`);
       // Wat hierna niemand meer nodig heeft, gaat het geheugen uit: de gedecodeerde opname, en op zuinige toestellen het model.
       if (pakket.audio && !ketting.slice(i + 1).some((id) => byId[id].in.includes("audio"))) delete pakket.audio;
       if (geheugen.zuinig && i < ketting.length - 1) { await geefAllesVrij(); await new Promise((r) => setTimeout(r, 150)); }
@@ -249,7 +255,7 @@ async function draai(vanaf = 0) {
       uitkomsten[i] = { id: m.id, ok: true, samenvatting: samenvatting(m, d, pakket), pakket: d, ms: performance.now() - tb, kreeg, door, nieuw, labels: labels(pakket) };
       tekenKetting(); tekenLogboek(i);
     } catch (e) {
-      console.error(m.id, e);
+      console.error(m.id, e); spoor(`stap ${i + 1} ${m.id}: mislukt: ${e.message ?? e}`);
       uitkomsten[i] = { id: m.id, ok: false, samenvatting: `mislukt: ${e.message ?? e}`, pakket: {} }; tekenKetting(); tekenLogboek(i); setStatus(`${m.naam} mislukt: ${e.message ?? e}`); break;
     }
   }
@@ -258,6 +264,7 @@ async function draai(vanaf = 0) {
   if (geslaagd === ketting.length && gebruik) setStatus(`Klaar in ${((performance.now() - t0) / 1000).toFixed(0)} s.${net.text.includes("api.anthropic.com") ? " De tekst is naar Anthropic gestuurd voor het verslag." : ""}`);
   else if (geslaagd === ketting.length) setStatus(`Ketting klaar in ${((performance.now() - t0) / 1000).toFixed(1)} s · ${net.text}${navigator.onLine ? "" : " · offline"}`);
   $("progress").classList.remove("on"); setProgress(0);
+  spoorKlaar(`einde: ${geslaagd} van ${ketting.length} stappen gelukt`);
   bezig = false; tekenKetting();
   eindpakket = pakket; tekenLogboek();
   if (gebruik) $("eindresultaat").scrollIntoView({ block: "start", behavior: "smooth" });
@@ -372,6 +379,13 @@ function kaart(i) {
   if (d.zekerheid != null && d.zekerheid < 70) { const w = document.createElement("p"); w.className = "let-op"; w.textContent = `Let op: de herkenning is onzeker (${d.zekerheid} %). Fotografeer recht van boven, met het stuk beeldvullend en scherp, bij gelijkmatig licht.`; voeg("", w); }
   if (d.passages) { voeg(`Gevonden passages, beste eerst · ${d.zoekmodel}`, tabel(d.passages.map((x, j) => [`[${j + 1}] passage ${x.nr} van ${x.van} · ${Math.round(x.score * 100)} %`, open ? x.tekst : x.tekst.slice(0, 160).replace(/\s+\S*$/, "") + (x.tekst.length > 160 ? "…" : "")]))); }
   else if (d.tekst != null && m.out.includes("tekst")) tekstblok(d.tekst, `${m.id === "redact" ? "Gemaskeerde tekst" : "Nieuwe tekst"}${d.delen > 1 ? ` · gemaakt in ${d.delen} delen` : ""}`);
+  if (d.voorgelezen) {
+    const w = document.createElement("div"); w.className = "row";
+    const lees = document.createElement("button"); lees.textContent = "▶ Lees voor"; lees.onclick = (e) => { e.stopPropagation(); toestelstem(d.voorleestekst ?? "").catch((x) => setStatus(`Voorlezen mislukt: ${x.message}`)); };
+    const stop = document.createElement("button"); stop.textContent = "■ Stop"; stop.onclick = (e) => { e.stopPropagation(); speechSynthesis.cancel(); };
+    w.append(lees, stop); voeg(`Voorgelezen met de stem van dit toestel: ${d.voorgelezen.stem}${d.voorgelezen.lokaal ? "" : " (deze stem gebruikt mogelijk een online dienst van de fabrikant)"}`, w);
+    const n = document.createElement("div"); n.className = "kreeg"; n.textContent = "Hoor je niets? Tik op Lees voor. De toestelstem levert geen geluidsbestand; kies Nathalie als je een wav wilt bewaren."; k.append(n);
+  }
   if (d.spraak) { u.spraakUrl ??= URL.createObjectURL(d.spraak); const a = document.createElement("audio"); a.controls = true; a.src = u.spraakUrl; voeg("Spraak", a); }
   if (d.claude) { const w = document.createElement("div"); w.className = "kreeg"; w.textContent = `${d.claude.model} · ${d.claude.tin.toLocaleString("nl")} tokens in, ${d.claude.tuit.toLocaleString("nl")} uit · ongeveer $${d.claude.dollar.toFixed(d.claude.dollar < 0.1 ? 3 : 2)} · ${d.claude.bewaring} door Anthropic${d.claude.afgekapt ? " · het antwoord is afgekapt" : ""}`; k.append(w); }
   if (d.claude && PLAATSHOUDER.test(d.tekst ?? "")) { const w = document.createElement("div"); w.className = "kreeg"; w.textContent = "De namen staan hier nog als plaatshouder, zo kwam het verslag terug. De kraal Namen terugzetten vult ze in: bewaar het verslag vanaf die kaart."; k.append(w); }
@@ -437,6 +451,18 @@ $("deel").onclick = () => deel(link(true), "Gebruikerslink");
 $("deel-studio").onclick = () => deel(link(false), "Studiolink");
 $("wis").onclick = () => { ketting = []; uitkomsten = []; eindpakket = null; tekenKetting(); tekenLogboek(); bewaarHash(); };
 
+// --- Spoor: liet de pagina het de vorige keer afweten? ------------------------------------------
+{
+  const v = vorigeKeer();
+  if (v) {
+    const tekst = spoorTekst(v), box = $("spoor");
+    box.style.display = ""; $("spoor-tekst").textContent = tekst;
+    $("spoor-laatste").textContent = v.regels.length ? v.regels[v.regels.length - 1][1] : "onbekend";
+    $("spoor-deel").onclick = async () => { if (navigator.share) await navigator.share({ title: "AntBench-spoor", text: tekst }).catch(() => {}); else { await navigator.clipboard.writeText(tekst); setStatus("Spoor gekopieerd."); } };
+    $("spoor-kopie").onclick = async () => { await navigator.clipboard.writeText(tekst); $("spoor-kopie").textContent = "Gekopieerd"; };
+    $("spoor-sluit").onclick = () => { spoorWeg(); box.style.display = "none"; };
+  }
+}
 // --- Archief: sessies op dit toestel -----------------------------------------------------------
 const dag = (t) => new Date(t).toLocaleString("nl-NL", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 /** Knop die pas bij de tweede tik iets doet; geen dialoogvenster nodig. */
@@ -483,6 +509,8 @@ $("archief-file").onchange = async (e) => { const f = e.target.files?.[0]; e.tar
 zeker($("archief-wis"), async () => { await wisAlles(); tekenArchief(); setStatus("Het archief op dit toestel is leeg."); });
 ruimOp().catch(() => 0).then((n) => { tekenArchief(); if (n) setStatus(`${n} ${n === 1 ? "sessie" : "sessies"} ouder dan ${archiefInstelling.dagen} dagen uit het archief verwijderd.`); });
 
+for (const [id, naam] of Object.entries(STEMMEN)) $("stem").add(new Option(naam, id));
+$("stem").value = stemInstelling.stem; $("stem").onchange = (e) => kiesStem(e.target.value);
 $("zuinig").checked = geheugen.zuinig; $("zuinig").onchange = (e) => zetZuinig(e.target.checked);
 // --- Instellingen --------------------------------------------------------------------------
 $("llm").value = llmInstelling.maat; $("llm").onchange = (e) => kiesLlm(e.target.value); llmInstelling.luister = (m) => { $("llm").value = m; };

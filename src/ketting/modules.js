@@ -448,7 +448,29 @@ export function opschonen(blocks) {
 }
 
 // --- Voorlezen (Piper) --------------------------------------------------------------
-export const stemInstelling = { stem: "nl_NL-mls-medium" };
+// Twee stemmen. Nathalie (Piper, Vlaams) draait in de browser en levert een wav. De stem van het toestel klinkt
+// vaak natuurlijker, maar kan alleen afspelen: de browser geeft het geluid niet als bestand terug.
+export const STEMMEN = { "nl_BE-nathalie-medium": "Nathalie (Vlaams) · maakt een wav-bestand", toestel: "Stem van dit toestel · alleen afspelen" };
+const bewaardeStem = (() => { try { return localStorage.getItem("antbench.stem"); } catch { return null; } })();
+export const stemInstelling = { stem: STEMMEN[bewaardeStem] ? bewaardeStem : "nl_BE-nathalie-medium" };
+export function kiesStem(s) { if (!STEMMEN[s]) return; stemInstelling.stem = s; try { localStorage.setItem("antbench.stem", s); } catch {} }
+const nlStemmen = () => new Promise((ok) => {
+  const kies = () => speechSynthesis.getVoices().filter((v) => /^nl/i.test(v.lang)).sort((a, b) => (/nl[-_]NL/i.test(b.lang) - /nl[-_]NL/i.test(a.lang)) || (b.localService - a.localService));
+  const nu = kies(); if (nu.length) return ok(nu);
+  speechSynthesis.addEventListener("voiceschanged", () => ok(kies()), { once: true }); setTimeout(() => ok(kies()), 1500);
+});
+/** iOS laat de toestelstem alleen spreken na een tik. Dit roep je aan in de klik op Start. */
+export function ontgrendelToestelstem() { try { if (stemInstelling.stem === "toestel" && "speechSynthesis" in window) speechSynthesis.speak(new SpeechSynthesisUtterance("")); } catch {} }
+/** Leest voor met de stem van het toestel, zin voor zin (lange stukken breekt de browser anders af). */
+export async function toestelstem(tekst) {
+  if (!("speechSynthesis" in window)) throw new Error("deze browser heeft geen eigen voorleesstem; kies Nathalie");
+  const stemmen = await nlStemmen();
+  if (!stemmen.length) throw new Error("dit toestel heeft geen Nederlandse voorleesstem; kies Nathalie, of voeg een Nederlandse stem toe in de instellingen van het toestel");
+  const zinnen = tekst.replace(/[*#_`>|]/g, "").slice(0, 6000).match(/[^.!?\n]+[.!?]*\s*/g)?.map((z) => z.trim()).filter(Boolean) ?? [];
+  speechSynthesis.cancel();
+  for (const z of zinnen) { const u = new SpeechSynthesisUtterance(z); u.voice = stemmen[0]; u.lang = stemmen[0].lang; speechSynthesis.speak(u); }
+  return { stem: stemmen[0].name, lokaal: stemmen[0].localService, zinnen: zinnen.length };
+}
 let piperSessie = null;
 async function voorlezen(tekst) {
   setStatus("Stem laden (Piper, Nederlands)…");
@@ -539,9 +561,9 @@ export const MODULES = [
     uitleg: "Engels → Nederlands, zin voor zin, op het toestel. Is de taal al als Nederlands vastgesteld, dan gaat de tekst ongewijzigd door.",
     run: async (p) => (p.taal === "nl" ? { overgeslagen: "de tekst is al Nederlands" } : { tekst: await vertaal(p.tekst, "en-nl"), taal: "nl", origineel: p.tekst }) },
   // Spreken
-  { id: "voorlezen", groep: "spreken", naam: "Voorlezen", lev: "Piper (open)", in: ["tekst"], out: ["spraak"],
-    uitleg: "Nederlandse stem leest de tekst voor (eerste 3000 tekens). Levert een wav-bestand.",
-    run: async (p) => ({ spraak: await voorlezen(p.tekst) }) },
+  { id: "voorlezen", groep: "spreken", naam: "Voorlezen", lev: "Piper (open) of de stem van het toestel", in: ["tekst"], out: ["spraak"], stem: true,
+    uitleg: "Leest de tekst voor. Nathalie (Vlaams) draait in de browser en levert een wav-bestand van de eerste 3000 tekens. De stem van het toestel klinkt vaak natuurlijker, maar speelt alleen af.",
+    run: async (p) => (stemInstelling.stem === "toestel" ? { voorgelezen: await toestelstem(p.tekst), voorleestekst: p.tekst } : { spraak: await voorlezen(p.tekst) }) },
   // Samen
   { id: "vragenlijst", groep: "samen", naam: "Willen / mogen / kunnen", lev: "idee Michiel Buisman (AIUE)", in: ["tekst"], out: ["tekst"], komt: true,
     uitleg: "Een AI-idee langs de vragenlijst: wat willen we, mag het, kunnen we het. Komt." },

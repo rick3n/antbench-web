@@ -140,7 +140,7 @@ doorgaat; anders gaat de tekst ongewijzigd door.
 
 | Kraal | Model | Krijgt → geeft | Wat hij doet |
 |---|---|---|---|
-| **Voorlezen** | Piper | tekst → spraak (wav) | Een Nederlandse stem leest de tekst voor (de eerste 3000 tekens). |
+| **Voorlezen** | Piper, of de stem van het toestel | tekst → spraak (wav) | Leest de tekst voor. Standaard *Nathalie* (Piper, Vlaams): draait in de browser en levert een wav van de eerste 3000 tekens. Alternatief de *stem van dit toestel*: klinkt vaak natuurlijker, maar speelt alleen af en levert geen bestand. De vorige Nederlandse stem (getraind op luisterboeken) klonk vlak en is vervangen. |
 
 ### ☁️ Buiten het toestel
 
@@ -232,7 +232,7 @@ Schuingedrukte kralen bestaan nog niet; de ketting stopt daar.
 
 ## Wat nog niet goed gaat
 
-**iPhone en iPad.** Safari geeft een tabblad weinig geheugen en gooit de pagina zonder melding weg als het te veel wordt. Het transcriptiemodel gebruikt in de browser ongeveer 1,2 GB. Daarom staat op die toestellen *Zuinig met geheugen* aan: het transcriberen draait apart en geeft zijn geheugen terug voordat de volgende stap begint. Gemeten in Chrome op een laptop zakt het geheugen tijdens de stap *Sprekers* daarmee van ongeveer 1,8 GB naar onder 1 GB. Op een echte iPhone is dit nog niet bevestigd, en het taalmodel (de schrijfkralen) blijft daar een risico.
+**iPhone en iPad.** Safari geeft een tabblad weinig geheugen en gooit de pagina zonder melding weg als het te veel wordt. Het transcriptiemodel gebruikt in de browser ongeveer 1,2 GB. Daarom staat op die toestellen *Zuinig met geheugen* aan: het transcriberen draait apart en geeft zijn geheugen terug voordat de volgende stap begint. Gemeten in Chrome op een laptop zakt het geheugen tijdens de stap *Sprekers* daarmee van ongeveer 1,8 GB naar onder 1 GB. Op een echte iPhone is dit nog niet bevestigd, en het taalmodel (de schrijfkralen) blijft daar een risico. De eerste test op een iPhone met iOS 26.5 liep ook met deze modus nog vast; daarom legt de pagina sinds 0.15.0 een *spoor* vast (stappen, tijden en toestelgegevens, geen inhoud) dat na het wegvallen te delen is.
 
 - **Het kleine taalmodel is beperkt.** Standaard draait Qwen3-0.6B, omdat het
   grotere model (1,7B) op veel toestellen te veel grafisch geheugen vraagt. In
@@ -346,6 +346,7 @@ een gebruiker direct te zien welke versie die draaide.
 | 0.13.0 | Gebruikersscherm voor de telefoon: een ketting als eenvoudige pagina met alleen invoer, start en resultaat, onder elkaar (*Deel voor gebruikers* in de studio); het paneel van *Verslag door Claude* klapt in zodra de sleutel is ingesteld |
 | 0.14.0 | Archief: elke run wordt op het toestel bewaard en is terug te halen met invoer, stappen en resultaat; opnieuw draaien vanaf een stap (*Verslag opnieuw maken*); ZIP-export en -import per sessie; bewaartermijn (standaard 30 dagen) en *Alles wissen* |
 | 0.14.1 | Zuinig met geheugen (vanzelf aan op iPhone en iPad): transcriberen draait in een eigen worker die daarna stopt, zodat het geheugen van Voz (±1,2 GB) vrij is voordat het volgende model laadt; kleine modellen worden na hun stap vrijgegeven; de gedecodeerde opname wordt losgelaten zodra geen stap hem meer nodig heeft |
+| 0.15.0 | Voorlezen: stemkeuze met Nathalie (Vlaams) als standaard en de stem van het toestel als alternatief. Spoor: valt de pagina weg tijdens het rijgen (iPhone), dan laat de volgende keer een melding zien bij welke stap, met toestelgegevens om door te sturen; zonder inhoud van de invoer |
 
 Verandert `package-lock.json`, zet dan `npmDepsHash` in `default.nix` opnieuw
 (`nix run nixpkgs#prefetch-npm-deps -- package-lock.json`).
