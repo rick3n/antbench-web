@@ -158,6 +158,9 @@ $("claude-sleutel").oninput = (e) => { zetClaude("sleutel", e.target.value.trim(
 $("claude-wis").onclick = () => { zetClaude("sleutel", ""); $("claude-sleutel").value = ""; claudeInfo(); };
 $("claude-model").onchange = (e) => { zetClaude("model", e.target.value); claudeInfo(); };
 $("claude-context").oninput = (e) => { zetClaude("context", e.target.value); claudeInfo(); };
+$("claude-woordenlijst").value = claudeInstelling.woordenlijst; $("claude-namenlijst").value = claudeInstelling.namenlijst;
+$("claude-woordenlijst").oninput = (e) => zetClaude("woordenlijst", e.target.value);
+$("claude-namenlijst").oninput = (e) => zetClaude("namenlijst", e.target.value);
 $("claude-sjabloon").oninput = (e) => zetClaude("sjabloon", e.target.value);
 $("claude-sjabloon-bestand").onclick = () => $("claude-sjabloon-file").click();
 $("claude-sjabloon-file").onchange = async (e) => { const f = e.target.files[0]; if (!f) return; const t = await fileToText(f); $("claude-sjabloon").value = t; zetClaude("sjabloon", t); e.target.value = ""; };
@@ -312,7 +315,7 @@ async function draai(vanaf = 0, { vervolg = false } = {}) {
   if (gebruik) $("eindresultaat").scrollIntoView({ block: "start", behavior: "smooth" });
   window.__pakket = pakket;
   if (archiefInstelling.aan && geslaagd) {
-    try { const c = claudeInstelling; await bewaarSessie({ titel: `${receptVan()?.naam ?? ketting.map((k) => byId[k].naam).join(" → ")} · ${invoer.file ? basisnaam() : invoer.tekst.trim().slice(0, 40).replace(/\s+\S*$/, "").replace(/[.,;:!?]+$/, "") + "…"}`, ketting, invoer, uitkomsten, eindpakket: pakket, versie: VERSION, claude: ketting.some((id) => byId[id].extern) ? { model: c.model, context: c.context, sjabloon: c.sjabloon } : null }); tekenArchief(); }
+    try { const c = claudeInstelling; await bewaarSessie({ titel: `${receptVan()?.naam ?? ketting.map((k) => byId[k].naam).join(" → ")} · ${invoer.file ? basisnaam() : invoer.tekst.trim().slice(0, 40).replace(/\s+\S*$/, "").replace(/[.,;:!?]+$/, "") + "…"}`, ketting, invoer, uitkomsten, eindpakket: pakket, versie: VERSION, claude: ketting.some((id) => byId[id].extern) ? { model: c.model, context: c.context, woordenlijst: c.woordenlijst, sjabloon: c.sjabloon } : null }); tekenArchief(); }
     catch (e) { console.error("archief", e); setStatus(`${$("status").textContent} Bewaren in het archief lukte niet: ${e.message ?? e}`); }
   }
 }
@@ -348,7 +351,7 @@ function labels(p) {
   const l = [];
   if (p.taal) l.push(`taal: ${p.taal}`);
   if (p.onderwerpen?.length) l.push(`onderwerp: ${p.onderwerpen[0].name}`);
-  if (p.pgg) l.push(`${p.pgg.length} persoonsgegevens gemaskeerd`);
+  if (p.pgg) l.push(`${p.pgg.length} persoonsgegevens gemaskeerd${p.uitNamenlijst ? ` (${p.uitNamenlijst}× uit je namenlijst)` : ""}`);
   if (p.stopwoorden) l.push(`${p.stopwoorden.length} stopwoordjes`);
   if (p.toon) l.push(p.toon.letOp ? "toon: let op" : "toon: in orde");
   if (p.gezichten) l.push(`${p.gezichten} gezichten vervaagd`);
@@ -453,7 +456,10 @@ const basisnaam = () => (invoer.file?.name ?? "tekst").replace(/\.[^.]+$/, "");
 /** Verslag van de hele ketting als lichte markdown; vult optioneel een ZIP met de losse delen. */
 function verslagMd(zip = null, kort = false) {
   const basis = basisnaam();
-  const verslag = [`# Ketting — ${basis}`, "", `${new Date().toLocaleString("nl-NL")} · ${VERSION} · alles op dit toestel`, "", `Kralen: ${ketting.map((k) => byId[k].naam).join(" → ")}`, ""];
+  // Eerlijk over wat het toestel verlaat: een kraal uit "Buiten het toestel" is een eigen keuze en gaat wél naar internet.
+  const buiten = ketting.filter((k) => byId[k].extern).map((k) => byId[k].naam);
+  const waar = buiten.length ? `op dit toestel, behalve ${buiten.length} zelf gekozen ${buiten.length === 1 ? "kraal die" : "kralen die"} tekst naar internet ${buiten.length === 1 ? "stuurt" : "sturen"}: ${buiten.join(", ")}` : "alles op dit toestel";
+  const verslag = [`# Ketting — ${basis}`, "", `${new Date().toLocaleString("nl-NL")} · ${VERSION} · ${waar}`, "", `Kralen: ${ketting.map((k) => byId[k].naam).join(" → ")}`, ""];
   uitkomsten.forEach((u, i) => {
     if (!u) return; const m = byId[u.id], d = u.pakket, nr = String(i + 1).padStart(2, "0");
     verslag.push(`## ${nr} ${m.naam} — ${u.samenvatting}`, "");
