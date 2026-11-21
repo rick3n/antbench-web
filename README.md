@@ -61,6 +61,14 @@ Een ketting deel je met de knop *Deel deze ketting*: de volgorde staat in het
 adres (`#k=ocr,redact,samenvatten`). Tekstresultaten sla je op als Word, PDF of
 Markdown, per kraal of als heel verslag; *Alles als ZIP* geeft ook de audio.
 
+### Gebruikersscherm: een ketting voor op de telefoon
+
+De studio is om kettingen te bouwen. Wie een ketting alleen wil gebruiken, heeft de voorraad en het slepen niet nodig. *Deel voor gebruikers* geeft een link naar dezelfde ketting als eenvoudige pagina: de invoer die de ketting nodig heeft (opnemen, foto of tekst), één knop *Start*, de stappen als lijstje en daaronder het resultaat met *Opslaan*. Alles staat onder elkaar en past op een telefoon. Wat elke stap deed staat ingeklapt onder het resultaat.
+
+De link is de studiolink met `&u=1` erachter, bijvoorbeeld `…/ketting/#k=voz,who,redact,claude,terugzetten&u=1`. Onderaan staat een link terug naar de studio.
+
+![Gebruikersscherm op een telefoon](docs/img/gebruik.png)
+
 ## De kralen
 
 *Krijgt → geeft* zegt wat een kraal uit het pakket nodig heeft en wat hij
@@ -322,6 +330,7 @@ een gebruiker direct te zien welke versie die draaide.
 | 0.11.0 | Nieuwe kraal *Verslag door Claude* (Anthropic API met eigen sleutel, keuze Opus 5.5 of Fable 5.2, projectcontext en sjabloon met voorbeeld, controle vóór versturen) en *Namen terugzetten* (lokaal); verhaal *Overleg → verslag met Claude*; koppen en tabellen worden in de uitkomst opgemaakt |
 | 0.12.0 | Desert Ant SDK 5.0.0 (was 4.3.0): nieuwe gewichten voor Eye en Moderator, nieuw Shapes-model (meerdere halen, zes tekens). Nieuwe kralen *Stopwoordjes* (Uhm), *Haatdragende taal?* (Toxic) en *Gezichten vervagen* (Face-detector); dezelfde drie als knop in AntBench; Toxic en Uhm kiesbaar in Project |
 | 0.12.1 | Maskeren geeft dezelfde naam overal hetzelfde nummer en maskeert ook vindplaatsen die het model oversloeg; Claude krijgt uitleg over de plaatshouders en schrijft er niet meer over; Word en PDF vermelden in de voetregel dat het verslag via Anthropic is gemaakt; hint op de kaart *Verslag door Claude* dat de namen in *Namen terugzetten* staan |
+| 0.13.0 | Gebruikersscherm voor de telefoon: een ketting als eenvoudige pagina met alleen invoer, start en resultaat, onder elkaar (*Deel voor gebruikers* in de studio); het paneel van *Verslag door Claude* klapt in zodra de sleutel is ingesteld |
 
 Verandert `package-lock.json`, zet dan `npmDepsHash` in `default.nix` opnieuw
 (`nix run nixpkgs#prefetch-npm-deps -- package-lock.json`).

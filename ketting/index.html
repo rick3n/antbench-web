@@ -8,28 +8,29 @@
   <link rel="icon" href="../icon-192.png">
 </head>
 <body>
-  <h1>Ketting</h1>
-  <p class="sub">Rijg kralen tot een klus. De tekst loopt als rode draad door de ketting: sommige kralen maken er een nieuwe tekst van (samenvatten, vertalen, maskeren), andere plakken er alleen een label op (taal, onderwerp) en laten de tekst ongemoeid. Alles op dit toestel, niets gaat naar een server, behalve als je zelf een kraal uit <em>Buiten het toestel</em> rijgt. <span id="net" class="net">● online</span></p>
-  <p class="sub"><a href="../werkbank/">De twaalf klussen</a> · <a href="../">AntBench (losse modellen)</a></p>
+  <div id="gebruik-kop" class="alleen-gebruik"><h1 id="gebruik-titel">Ketting</h1><p class="sub" id="gebruik-uitleg"></p></div>
+  <h1 class="alleen-studio">Ketting</h1>
+  <p class="sub alleen-studio">Rijg kralen tot een klus. De tekst loopt als rode draad door de ketting: sommige kralen maken er een nieuwe tekst van (samenvatten, vertalen, maskeren), andere plakken er alleen een label op (taal, onderwerp) en laten de tekst ongemoeid. Alles op dit toestel, niets gaat naar een server, behalve als je zelf een kraal uit <em>Buiten het toestel</em> rijgt. <span id="net" class="net">● online</span></p>
+  <p class="sub alleen-studio"><a href="../werkbank/">De twaalf klussen</a> · <a href="../">AntBench (losse modellen)</a></p>
 
-  <div id="verhalen" title="Kant-en-klare kettingen: klik en de kralen liggen klaar"></div>
+  <div id="verhalen" class="alleen-studio" title="Kant-en-klare kettingen: klik en de kralen liggen klaar"></div>
 
   <div class="werkplaats">
-    <aside>
+    <aside class="alleen-studio">
       <h2 style="font-size:1rem;margin:.2rem 0 .5rem">Voorraad <small class="small">sleep of tik</small></h2>
       <div id="voorraad"></div>
     </aside>
 
     <div class="rechts">
       <section>
-        <h2>Ketting <small id="aantal"></small></h2>
+        <h2><span class="alleen-studio">Ketting</span><span class="alleen-gebruik">Stappen</span> <small id="aantal"></small></h2>
         <div id="ketting"></div>
         <p id="leeg">Sleep kralen uit de voorraad hierheen, of kies een verhaal hierboven.</p>
-        <div class="row"><button id="wis">Leeg</button><button id="deel">Deel deze ketting</button></div>
+        <div class="row alleen-studio"><button id="wis">Leeg</button><button id="deel" title="Link naar het eenvoudige scherm: alleen invoer, start en resultaat">Deel voor gebruikers</button><button id="deel-studio" title="Link naar deze studio, om de ketting aan te passen">Deel studiolink</button><a id="proef" class="small" href="#">Bekijk als gebruiker</a></div>
       </section>
 
       <section>
-        <h2>Invoer <small id="invoer-hint"></small></h2>
+        <h2>Invoer <small id="invoer-hint" class="alleen-studio"></small></h2>
         <div class="row">
           <button id="pick">Bestand…</button>
           <input id="file" type="file" accept="audio/*,video/*,image/*,.txt,.md,.html,.docx">
@@ -40,8 +41,9 @@
         </div>
         <textarea id="tekst" placeholder="…of typ of plak hier tekst"></textarea>
         <input id="vraag" type="text" placeholder="Vraag aan het document, bijvoorbeeld: wanneer moet de aanvraag binnen zijn?" style="display:none">
-        <div id="claude-paneel" style="display:none">
-          <div class="paneelkop">☁️ Verslag door Claude <small>deze kraal stuurt tekst naar Anthropic; de rest van de ketting blijft op dit toestel</small></div>
+        <details id="claude-paneel" style="display:none">
+          <summary class="paneelkop">☁️ Verslag door Claude <small id="claude-kort"></small></summary>
+          <p class="small" style="margin:.3rem 0">Deze kraal stuurt tekst naar Anthropic; de rest van de ketting blijft op dit toestel.</p>
           <div class="row">
             <label class="small">Eigen API-sleutel <input id="claude-sleutel" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-…"></label>
             <button id="claude-wis" title="Sleutel van dit toestel verwijderen">Wis sleutel</button>
@@ -56,26 +58,29 @@
             <button id="claude-sjabloon-bestand">Sjabloon uit bestand…</button><input id="claude-sjabloon-file" type="file" accept=".txt,.md,.html,.docx" style="display:none">
             <button id="claude-sjabloon-voorbeeld">Voorbeeld terugzetten</button>
           </div>
-        </div>
+        </details>
         <audio id="preview-audio" controls style="display:none"></audio>
         <img id="preview-beeld" alt="" style="display:none">
         <div class="row">
           <button id="go" class="primary" disabled>Rijg en ga</button>
-          <label class="small">Taalmodel <select id="llm"><option value="klein">klein</option><option value="normaal">normaal</option></select></label>
-          <span id="llm-info" class="small"></span>
+          <label class="small alleen-studio">Taalmodel <select id="llm"><option value="klein">klein</option><option value="normaal">normaal</option></select></label>
+          <span id="llm-info" class="small alleen-studio"></span>
         </div>
         <progress id="progress" max="1" value="0"></progress>
         <div id="status">Kies een verhaal of sleep kralen; elk model laadt bij eerste gebruik en blijft daarna in de modelcache.</div>
       </section>
 
       <section>
-        <h2>Uitkomst <small>elke kraal laat zien wat hij kreeg en wat hij doorgeeft</small></h2>
+        <h2><span class="alleen-studio">Uitkomst</span><span class="alleen-gebruik">Resultaat</span> <small class="alleen-studio">elke kraal laat zien wat hij kreeg en wat hij doorgeeft</small></h2>
+        <div id="eindresultaat" class="alleen-gebruik small">Nog niets gemaakt.</div>
+        <details id="stappen" open><summary>Bekijk wat elke stap deed</summary>
         <div id="uitkomst" class="small">Nog niets gerijgd.</div>
+        </details>
         <div class="row" id="acties" style="display:none">
           <label class="small">Opslaan als <select id="fmt"><option value="docx">Word (.docx)</option><option value="pdf">PDF</option><option value="md">Markdown (.md)</option></select></label>
-          <button id="bewaar-kraal">Deze kraal</button>
-          <button id="bewaar-verslag">Hele verslag</button>
-          <button id="download">Alles als ZIP</button>
+          <button id="bewaar-kraal"><span class="alleen-studio">Deze kraal</span><span class="alleen-gebruik">Opslaan</span></button>
+          <button id="bewaar-verslag" class="alleen-studio">Hele verslag</button>
+          <button id="download" class="alleen-studio">Alles als ZIP</button>
         </div>
       </section>
     </div>
@@ -89,8 +94,8 @@
   </dialog>
 
   <footer>
-    <p><span id="rt"></span></p>
-    <p>Kralen van <a href="https://desertant.com">Desert Ant Labs</a> (Voz, Who, Ear, Clear, Eye, Moderator, Tongue, Gist, Redact) en open modellen: <a href="https://github.com/naptha/tesseract.js">Tesseract</a> (OCR), <a href="https://huggingface.co/Xenova/opus-mt-nl-en">Opus-MT</a> via Transformers.js (vertalen), <a href="https://github.com/mlc-ai/web-llm">Qwen3 via WebLLM</a> (schrijven), <a href="https://github.com/rhasspy/piper">Piper</a> (voorlezen), <a href="https://huggingface.co/google/embeddinggemma-2">EmbeddingGemma 2</a> (zoeken op betekenis). De kraal <em>Verslag door Claude</em> gebruikt de API van <a href="https://www.anthropic.com">Anthropic</a> met je eigen sleutel. De kralen <em>willen/mogen/kunnen</em>, <em>checklist</em> en <em>zoeken met bronvermelding</em> zijn naar ideeën van Michiel Buisman (AI Usecase Explorer, AIbaarAI). Broncode: <a href="https://github.com/rick3n/antbench-web">github.com/rick3n/antbench-web</a>. Deze demo-site is tijdelijk, tot 1 december 2026.</p>
+    <p><span id="rt"></span> <a id="naar-studio" class="alleen-gebruik" href="#">Deze ketting aanpassen in de studio</a></p>
+    <p class="alleen-studio">Kralen van <a href="https://desertant.com">Desert Ant Labs</a> (Voz, Who, Ear, Clear, Eye, Moderator, Tongue, Gist, Redact) en open modellen: <a href="https://github.com/naptha/tesseract.js">Tesseract</a> (OCR), <a href="https://huggingface.co/Xenova/opus-mt-nl-en">Opus-MT</a> via Transformers.js (vertalen), <a href="https://github.com/mlc-ai/web-llm">Qwen3 via WebLLM</a> (schrijven), <a href="https://github.com/rhasspy/piper">Piper</a> (voorlezen), <a href="https://huggingface.co/google/embeddinggemma-2">EmbeddingGemma 2</a> (zoeken op betekenis). De kraal <em>Verslag door Claude</em> gebruikt de API van <a href="https://www.anthropic.com">Anthropic</a> met je eigen sleutel. De kralen <em>willen/mogen/kunnen</em>, <em>checklist</em> en <em>zoeken met bronvermelding</em> zijn naar ideeën van Michiel Buisman (AI Usecase Explorer, AIbaarAI). Broncode: <a href="https://github.com/rick3n/antbench-web">github.com/rick3n/antbench-web</a>. Deze demo-site is tijdelijk, tot 1 december 2026.</p>
   </footer>
 
   <script type="module" src="/src/ketting/main.js"></script>

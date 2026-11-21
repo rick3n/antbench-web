@@ -115,3 +115,35 @@ footer a { color: inherit; }
 .tekstblok .wit { height: .5rem; } .tekstblok ul { margin: .2rem 0 .2rem 1.1rem; padding: 0; }
 .mdtabel { border-collapse: collapse; margin: .3rem 0; } .mdtabel th, .mdtabel td { border: 1px solid var(--line); padding: .2rem .5rem; text-align: left; vertical-align: top; }
 .kaartbeeld { display: block; max-width: 100%; max-height: 22rem; border-radius: .5rem; margin-bottom: .3rem; }
+
+/* Claude-paneel klapt in zodra het is ingesteld */
+#claude-paneel > summary { cursor: pointer; opacity: 1; font-size: 1rem; } #claude-paneel > summary small { font-weight: 400; opacity: .7; margin-left: .3rem; }
+#claude-paneel:not([open]) > summary { margin-bottom: 0; }
+
+/* studio en gebruikersscherm delen één pagina */
+.alleen-gebruik { display: none !important; }
+#stappen > summary { display: none; }
+body.gebruik .alleen-studio { display: none !important; }
+body.gebruik .alleen-gebruik { display: revert !important; }
+body.gebruik span.alleen-gebruik { display: inline !important; }
+body.gebruik { max-width: 36rem; padding: .8rem .8rem 3rem; }
+body.gebruik .werkplaats { display: block; }
+body.gebruik .rechts > section { padding: .8rem; }
+body.gebruik #stappen > summary { display: list-item; margin-top: .8rem; }
+/* de ketting als lijstje stappen, onder elkaar */
+body.gebruik #ketting { flex-direction: column; align-items: stretch; min-height: 0; overflow: visible; padding: .2rem; background: none; gap: .1rem; }
+body.gebruik .startkraal, body.gebruik .eindkraal, body.gebruik .schakel, body.gebruik .bead .knoppen { display: none !important; }
+body.gebruik .bead { width: auto; display: grid; grid-template-columns: 2rem 1fr; grid-template-areas: "bol naam" "bol sub"; gap: 0 .6rem; text-align: left; align-items: center; cursor: default; padding: .25rem .2rem; }
+body.gebruik .bead .bol { grid-area: bol; width: 2rem; height: 2rem; font-size: 1rem; box-shadow: none; position: relative; }
+body.gebruik .bead .naam { grid-area: naam; font-size: .92rem; } body.gebruik .bead .sub { grid-area: sub; font-size: .78rem; min-height: 0; }
+body.gebruik .bead.klaar .bol::after, body.gebruik .bead.mislukt .bol::after { top: -.3rem; right: -.3rem; width: 1rem; height: 1rem; font-size: .65rem; }
+/* grote knoppen, onder elkaar */
+body.gebruik .rechts .row { flex-direction: column; align-items: stretch; }
+body.gebruik .rechts .row > button { min-height: 3rem; font-size: 1.02rem; }
+body.gebruik #go { min-height: 3.4rem; font-size: 1.1rem; }
+body.gebruik #claude-paneel .row > label { display: flex; flex-direction: column; gap: .2rem; } body.gebruik #claude-paneel input[type=password], body.gebruik #acties select, body.gebruik #claude-paneel select { width: 100%; font: inherit; padding: .5rem; }
+body.gebruik #acties label { display: flex; flex-direction: column; gap: .2rem; }
+body.gebruik .tekstblok.eind { max-height: none; font-size: 1rem; padding: .7rem .8rem; overflow-x: auto; }
+body.gebruik #eindresultaat .stap { margin: 0; }
+body.gebruik .rechts { display: flex; flex-direction: column; } body.gebruik .rechts > section:nth-child(1) { order: 2; } body.gebruik .rechts > section:nth-child(2) { order: 1; } body.gebruik .rechts > section:nth-child(3) { order: 3; }
+body.gebruik #aantal { display: none; } body.gebruik .bead.past-niet .bol { outline: none; }

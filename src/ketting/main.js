@@ -62,7 +62,7 @@ function tekenKetting() {
     const m = byId[id], u = uitkomsten[i];
     const link = document.createElement("div"); link.className = "schakel " + (past[i] ? "ok" : "fout"); link.title = past[i] ? "past" : `mist: ${m.in.filter((x) => !analyse().eind.has(x)).map((x) => SLEUTELS[x]).join(", ") || "iets eerder in de ketting"}`; lane.append(link);
     const b = document.createElement("div"); b.className = "bead" + (m.komt ? " komt" : "") + (u ? (u.ok ? " klaar" : " mislukt") : "") + (past[i] ? "" : " past-niet"); b.style.setProperty("--c", kleur[m.groep]); b.dataset.i = i; b.draggable = true;
-    b.innerHTML = `<span class="bol">${ICOON[m.groep]}</span><span class="naam">${m.naam}</span><span class="sub">${u ? u.samenvatting : m.komt ? "bestaat nog niet" : past[i] ? m.out.map((x) => SLEUTELS[x]).join(", ") || "oordeel" : "mist " + m.in.map((x) => SLEUTELS[x]).join("+")}</span>
+    b.innerHTML = `<span class="bol">${ICOON[m.groep]}</span><span class="naam">${m.naam}</span><span class="sub">${u ? u.samenvatting : gebruik ? "" : m.komt ? "bestaat nog niet" : past[i] ? m.out.map((x) => SLEUTELS[x]).join(", ") || "oordeel" : "mist " + m.in.map((x) => SLEUTELS[x]).join("+")}</span>
       <span class="knoppen"><button title="naar links" data-k="l">‹</button><button title="naar rechts" data-k="r">›</button><button title="weg" data-k="x">✕</button></span>`;
     b.ondragstart = (e) => { e.dataTransfer.setData("text/plain", "move:" + i); e.dataTransfer.effectAllowed = "move"; };
     b.onclick = (e) => { const k = e.target.dataset.k; if (k === "x") verwijder(i); else if (k === "l") verplaats(i, i - 1); else if (k === "r") verplaats(i, i + 1); else toonUitkomst(i); };
@@ -70,6 +70,10 @@ function tekenKetting() {
   });
   const eind = document.createElement("div"); eind.className = "eindkraal"; eind.innerHTML = `<span class="bol">🎁</span><span class="naam">uitkomst</span>`; lane.append(eind);
   $("vraag").style.display = ketting.some((id) => byId[id].vraag) ? "" : "none";
+  // gebruikersscherm: alleen de invoer tonen die deze ketting nodig heeft
+  const nodig = gebruik ? byId[ketting[0]]?.in.find((x) => ["audio", "beeld", "tekst"].includes(x)) : null;
+  $("rec").style.display = !nodig || nodig === "audio" ? "" : "none"; $("cam").style.display = !nodig || nodig === "beeld" ? "" : "none"; $("tekst").style.display = !nodig || nodig === "tekst" ? "" : "none";
+  $("proef").href = link(true);
   $("claude-paneel").style.display = ketting.some((id) => byId[id].extern) ? "" : "none";
   $("go").disabled = !ketting.length || !start.size || bezig;
   $("leeg").style.display = ketting.length ? "none" : "";
@@ -99,7 +103,23 @@ function tekenVerhalen() {
     v.append(b);
   }
 }
+const receptVan = () => RECEPTEN.find((r) => r.kralen.join() === ketting.join());
 function bewaarHash(recept) { history.replaceState(null, "", `#k=${ketting.join(",")}${recept ? `&r=${recept}` : ""}`); }
+/** Het gebruikersscherm: dezelfde ketting, zonder studio. Alleen invoer, start en resultaat, onder elkaar. */
+let gebruik = false;
+const link = (u) => `${location.origin}${location.pathname}#k=${ketting.join(",")}${u ? "&u=1" : ""}`;
+function zetModus() {
+  gebruik = new URLSearchParams(location.hash.slice(1)).has("u");
+  document.body.classList.toggle("gebruik", gebruik);
+  $("stappen").open = !gebruik; $("go").textContent = gebruik ? "Start" : "Rijg en ga";
+  if (!gebruik) return;
+  const extern = ketting.some((id) => byId[id].extern), titel = receptVan()?.naam ?? "Ketting";
+  $("gebruik-titel").textContent = titel; document.title = titel;
+  $("gebruik-uitleg").textContent = extern ? "Alles gebeurt op dit toestel, op één stap na: Verslag door Claude stuurt de tekst naar Anthropic. Je ziet eerst wat er verstuurd wordt." : "Alles gebeurt op dit toestel. Je opname, foto of tekst gaat niet naar een server.";
+  $("naar-studio").href = link(false);
+  const nodig = byId[ketting[0]]?.in.find((x) => ["audio", "beeld", "tekst"].includes(x));
+  setStatus({ audio: "Neem op of kies een geluidsbestand, en tik dan op Start.", beeld: "Maak een foto of kies een afbeelding, en tik dan op Start.", tekst: "Typ of plak je tekst, of kies een bestand, en tik dan op Start." }[nodig] ?? "Kies de invoer en tik op Start.");
+}
 function laadHash() {
   const h = new URLSearchParams(location.hash.slice(1));
   const r = RECEPTEN.find((x) => x.id === h.get("r"));
@@ -121,13 +141,15 @@ $("vraag").oninput = () => { invoer.vraag = $("vraag").value; };
 
 // --- Verslag door Claude: instellingen (alles in localStorage op dit toestel) en de controle vóór versturen
 for (const [id, m] of Object.entries(CLAUDE_MODELLEN)) $("claude-model").add(new Option(m.naam, id));
-const claudeInfo = () => { const m = CLAUDE_MODELLEN[claudeInstelling.model]; $("claude-info").textContent = `${m.naam}: $${m.in} per miljoen tokens invoer, $${m.uit} uitvoer; ${m.bewaring} door Anthropic. ${claudeInstelling.sleutel ? "Sleutel staat op dit toestel." : "Nog geen sleutel ingevoerd."}`; };
+const claudeInfo = () => { const m = CLAUDE_MODELLEN[claudeInstelling.model]; $("claude-info").textContent = `${m.naam}: $${m.in} per miljoen tokens invoer, $${m.uit} uitvoer; ${m.bewaring} door Anthropic. ${claudeInstelling.sleutel ? "Sleutel staat op dit toestel." : "Nog geen sleutel ingevoerd."}`;
+  $("claude-kort").textContent = claudeInstelling.sleutel ? `${m.naam} · sleutel ingesteld · ${claudeInstelling.context.trim() ? "met projectcontext" : "zonder projectcontext"} · tik om te wijzigen` : "nog instellen: voer je API-sleutel in"; };
 $("claude-sleutel").value = claudeInstelling.sleutel; $("claude-model").value = claudeInstelling.model;
 $("claude-context").value = claudeInstelling.context; $("claude-sjabloon").value = claudeInstelling.sjabloon; claudeInfo();
+$("claude-paneel").open = !claudeInstelling.sleutel;   // eenmaal ingesteld blijft het paneel dicht
 $("claude-sleutel").oninput = (e) => { zetClaude("sleutel", e.target.value.trim()); claudeInfo(); };
 $("claude-wis").onclick = () => { zetClaude("sleutel", ""); $("claude-sleutel").value = ""; claudeInfo(); };
 $("claude-model").onchange = (e) => { zetClaude("model", e.target.value); claudeInfo(); };
-$("claude-context").oninput = (e) => zetClaude("context", e.target.value);
+$("claude-context").oninput = (e) => { zetClaude("context", e.target.value); claudeInfo(); };
 $("claude-sjabloon").oninput = (e) => zetClaude("sjabloon", e.target.value);
 $("claude-sjabloon-bestand").onclick = () => $("claude-sjabloon-file").click();
 $("claude-sjabloon-file").onchange = async (e) => { const f = e.target.files[0]; if (!f) return; const t = await fileToText(f); $("claude-sjabloon").value = t; zetClaude("sjabloon", t); e.target.value = ""; };
@@ -186,7 +208,9 @@ function samenvatting(m, d, pakket) {
 
 $("go").onclick = async () => {
   if (bezig) return;
-  bezig = true; uitkomsten = []; gekozenKraal = null; tekenKetting(); tekenLogboek(); $("go").disabled = true; $("progress").classList.add("on");
+  if (ketting.some((id) => byId[id].extern) && !claudeInstelling.sleutel) { $("claude-paneel").open = true; $("claude-sleutel").focus(); setStatus("Voer eerst je eigen Anthropic API-sleutel in; hij blijft op dit toestel."); return; }
+  if (claudeInstelling.sleutel) $("claude-paneel").open = false;
+  bezig = true; uitkomsten = []; eindpakket = null; gekozenKraal = null; tekenKetting(); tekenLogboek(); $("go").disabled = true; $("progress").classList.add("on");
   const t0 = performance.now(); performance.clearResourceTimings();
   let pakket;
   try { setStatus("Invoer lezen…"); pakket = await startpakket(invoer); }
@@ -213,10 +237,12 @@ $("go").onclick = async () => {
   }
   await new Promise((r) => setTimeout(r, 50));
   const net = netSummary(t0), geslaagd = uitkomsten.filter((u) => u?.ok).length;
-  if (geslaagd === ketting.length) setStatus(`Ketting klaar in ${((performance.now() - t0) / 1000).toFixed(1)} s · ${net.text}${navigator.onLine ? "" : " · offline"}`);
+  if (geslaagd === ketting.length && gebruik) setStatus(`Klaar in ${((performance.now() - t0) / 1000).toFixed(0)} s.${net.text.includes("api.anthropic.com") ? " De tekst is naar Anthropic gestuurd voor het verslag." : ""}`);
+  else if (geslaagd === ketting.length) setStatus(`Ketting klaar in ${((performance.now() - t0) / 1000).toFixed(1)} s · ${net.text}${navigator.onLine ? "" : " · offline"}`);
   $("progress").classList.remove("on"); setProgress(0);
   bezig = false; tekenKetting();
   eindpakket = pakket; tekenLogboek();
+  if (gebruik) $("eindresultaat").scrollIntoView({ block: "start", behavior: "smooth" });
   window.__pakket = pakket;
 };
 
@@ -276,7 +302,20 @@ function tekenLogboek(nieuwste = null) {
     const p = document.createElement("div"); p.className = "door"; p.textContent = [eindpakket.tekst != null ? `tekst (${telWoorden(eindpakket.tekst)} woorden)` : null, ...l, eindpakket.spraak ? "spraak (wav)" : null].filter(Boolean).join(" · ") || "niets"; e.append(p); box.append(e);
   }
   $("acties").style.display = uitkomsten.some((u) => u?.ok) ? "" : "none";
-  if (nieuwste != null) box.children[nieuwste]?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  tekenEind();
+  if (nieuwste != null && !gebruik) box.children[nieuwste]?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+}
+/** Gebruikersscherm: alleen wat de ketting uiteindelijk opleverde. */
+function tekenEind() {
+  const box = $("eindresultaat"); if (!gebruik) return;
+  box.replaceChildren(); box.className = "alleen-gebruik";
+  const mis = uitkomsten.find((u) => u && !u.ok);
+  if (mis) { const p = document.createElement("p"); p.className = "let-op"; p.textContent = `Gestopt bij ${byId[mis.id].naam}: ${mis.samenvatting}`; box.append(p); }
+  if (bezig || !eindpakket) { if (!mis) { box.textContent = bezig ? "Bezig…" : "Nog niets gemaakt."; box.classList.add("small"); } return; }
+  const i = uitkomsten.map((u, j) => (u?.ok ? j : -1)).filter((j) => j >= 0).pop(); if (i == null) return;
+  const u = uitkomsten[i], m = byId[u.id], t = u.pakket.beoordeling ?? (m.out.includes("tekst") ? u.pakket.tekst : null);
+  if (t != null && !u.pakket.passages) { const p = document.createElement("div"); p.className = "tekstblok eind"; p.innerHTML = md(t); box.append(p); }
+  else { const oud = gekozenKraal; gekozenKraal = i; box.append(kaart(i)); gekozenKraal = oud; }
 }
 function kaart(i) {
   const u = uitkomsten[i], m = byId[u.id], d = u.pakket, open = gekozenKraal === i;
@@ -367,7 +406,9 @@ $("download").onclick = async () => {
   const blob = await zip.generateAsync({ type: "blob" }), a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `${basis}__ketting.zip`; a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 60_000);
 };
-$("deel").onclick = async () => { const url = location.href; if (navigator.share) await navigator.share({ title: "Ketting", url }).catch(() => {}); else { await navigator.clipboard.writeText(url); setStatus("Link naar deze ketting gekopieerd."); } };
+const deel = async (url, wat) => { if (navigator.share) await navigator.share({ title: receptVan()?.naam ?? "Ketting", url }).catch(() => {}); else { await navigator.clipboard.writeText(url); setStatus(`${wat} gekopieerd.`); } };
+$("deel").onclick = () => deel(link(true), "Gebruikerslink");
+$("deel-studio").onclick = () => deel(link(false), "Studiolink");
 $("wis").onclick = () => { ketting = []; uitkomsten = []; eindpakket = null; tekenKetting(); tekenLogboek(); bewaarHash(); };
 
 // --- Instellingen --------------------------------------------------------------------------
@@ -376,6 +417,6 @@ $("llm-info").textContent = `(${Object.entries(LLM_KEUZE).map(([k, v]) => `${k}:
 
 // --- Start ------------------------------------------------------------------------------------
 $("rt").textContent = `${VERSION} · ${navigator.gpu ? "WebGPU beschikbaar" : "WASM (CPU)"}`;
-tekenVoorraad(); tekenVerhalen(); laadHash(); tekenKetting();
-window.addEventListener("hashchange", () => { uitkomsten = []; laadHash(); tekenKetting(); });
+tekenVoorraad(); tekenVerhalen(); laadHash(); zetModus(); tekenKetting(); tekenLogboek();
+window.addEventListener("hashchange", () => { uitkomsten = []; eindpakket = null; laadHash(); zetModus(); tekenKetting(); tekenLogboek(); });
 if ("serviceWorker" in navigator) navigator.serviceWorker.register(`${BASE}sw.js`).catch(() => {});
