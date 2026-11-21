@@ -7,6 +7,7 @@
 // Een kraal kleurt groen als alles wat hij nodig heeft op dat punt in de ketting
 // al aanwezig is, anders rood. Kralen met status "komt" bestaan nog niet.
 import { BASE, setProgress, setStatus } from "../ui.js";
+import { spoor } from "../spoor.js";
 import { model, actions, geheugen, vozApart, decodeAudio, downsample, toWav, imageToPixels, voorOcr, fileToText, fmt, vervaagGezichten, TOXIC_NL } from "../engine.js";
 
 // --- Sleutels van het doorgeefpakket (voor uitleg en kleur) ---------------------
@@ -24,6 +25,41 @@ export const GROEPEN = [
 // --- Hulpjes --------------------------------------------------------------------
 
 /** Sprekers per zin (zelfde aanpak als Vergadering): woorden → zinnen → spreker met meeste tijd → samenvoegen. */
+/** Voortgang naar de balk, en elk kwart in het spoor, zodat na een weggevallen pagina te zien is hoe ver het kwam. */
+const mijlpalen = (wat) => { let s = -1; return (f) => { setProgress(f); const q = Math.floor(f * 4); if (q !== s) { s = q; spoor(`${wat} ${Math.round(f * 100)} %`); } }; };
+/**
+ * Knipt tijdvakken (stopwoordjes) uit mono-audio. Vlak naast elkaar liggende vakken worden samengenomen en elke
+ * las krijgt een korte fade (5 ms), zodat er geen tik te horen is. `naar(t)` rekent een tijdstip om naar de
+ * nieuwe opname.
+ */
+export function knipUit(audio, vakken) {
+  const { samples, sampleRate: sr } = audio, n = samples.length;
+  const weg = []; for (const v of [...vakken].sort((a, b) => a.start - b.start)) { const a = Math.max(0, v.start), b = Math.min(n / sr, v.end); if (b <= a) continue; const l = weg[weg.length - 1]; if (l && a - l.end < 0.03) l.end = Math.max(l.end, b); else weg.push({ start: a, end: b }); }
+  const houd = []; let t = 0; for (const w of weg) { if (w.start > t) houd.push([Math.round(t * sr), Math.round(w.start * sr)]); t = w.end; } if (t * sr < n) houd.push([Math.round(t * sr), n]);
+  const uit = new Float32Array(houd.reduce((s, [a, b]) => s + b - a, 0)), fade = Math.round(0.005 * sr); let o = 0;
+  houd.forEach(([a, b], i) => {
+    uit.set(samples.subarray(a, b), o); const len = b - a, f = Math.min(fade, len >> 1);
+    if (i > 0) for (let k = 0; k < f; k++) uit[o + k] *= k / f;
+    if (i < houd.length - 1) for (let k = 0; k < f; k++) uit[o + len - 1 - k] *= k / f;
+    o += len;
+  });
+  const naar = (x) => { let af = 0; for (const w of weg) { if (x >= w.end) af += w.end - w.start; else if (x > w.start) af += x - w.start; else break; } return x - af; };
+  return { samples: uit, sampleRate: sr, duration: uit.length / sr, weg, seconden: weg.reduce((s, w) => s + w.end - w.start, 0), naar };
+}
+async function knipStopwoordjes(p) {
+  // De strenge stand: alleen knippen wat het model zeker weet. Met de woorden uit het transcript erbij schuift het
+  // model de grenzen zo dat een knip nooit door een echt woord gaat, en vallen de eh's ook uit de tekst.
+  const r = await (await model("uhm")).detect(p.audio.samples, p.audio.sampleRate, { bias: "precision", ...(p.woorden?.length ? { words: p.woorden.map((w) => ({ start: w.start, end: w.end, text: w.text })) } : {}) });
+  const k = knipUit(p.audio, r.fillers);
+  const uit = { audio: { samples: k.samples, sampleRate: k.sampleRate, duration: k.duration }, spraak: toWav(k.samples, k.sampleRate),
+    geknipt: { aantal: r.fillers.length, seconden: k.seconden, was: p.audio.duration, metWoorden: !!r.words, waar: k.weg.map((w) => ({ start: w.start, end: w.end })) } };
+  if (r.words) {
+    uit.woorden = r.words.map((w) => ({ ...w, start: k.naar(w.start), end: k.naar(w.end) }));
+    if (p.sprekers) uit.sprekers = p.sprekers.map((t) => ({ ...t, start: k.naar(t.start), end: k.naar(t.end) })).filter((t) => t.end > t.start);
+    uit.tekst = sprekerTekst(uit.woorden, uit.sprekers ?? null).replace(/\s+([,.!?;:])/g, "$1");
+  }
+  return uit;
+}
 function sprekerTekst(words, turns) {
   if (!words?.length) return "";
   if (!turns?.length) return words.map((w) => w.text).join(" ");
@@ -494,7 +530,7 @@ export const MODULES = [
   // Luisteren
   { id: "voz", groep: "luisteren", naam: "Transcriberen", lev: "Desert Ant Voz", in: ["audio"], out: ["tekst", "woorden"],
     uitleg: "Spraak naar tekst, met per woord het tijdstip. 25 talen, raadt de taal zelf. Zijn de sprekers al bepaald, dan wordt de tekst per spreker ingedeeld.",
-    run: async (p) => { const r = geheugen.zuinig ? await vozApart(p.audio) : await (await model("voz")).transcribe(p.audio, { onProgress: setProgress }); return { tekst: p.sprekers ? sprekerTekst(r.words, p.sprekers) : r.text.trim(), woorden: r.words }; } },
+    run: async (p) => { const r = geheugen.zuinig && !geheugen.apple ? await vozApart(p.audio) : await (await model("voz")).transcribe(p.audio, { onProgress: mijlpalen("transcriberen") }); return { tekst: p.sprekers ? sprekerTekst(r.words, p.sprekers) : r.text.trim(), woorden: r.words }; } },
   { id: "who", groep: "luisteren", naam: "Sprekers", lev: "Desert Ant Who", in: ["audio"], out: ["sprekers", "tekst"],
     uitleg: "Wie sprak wanneer. Staat er al een transcript, dan wordt het per spreker ingedeeld.",
     run: async (p) => { const w = (await (await model("who")).diarize(p.audio)).keepingSpeakers({ minimumShare: 0.08 }); const out = { sprekers: w.turns, sprekerAantal: w.speakerCount }; if (p.woorden) out.tekst = sprekerTekst(p.woorden, w.turns); return out; } },
@@ -504,6 +540,9 @@ export const MODULES = [
   { id: "uhm", groep: "luisteren", naam: "Stopwoordjes", lev: "Desert Ant Uhm", in: ["audio"], out: ["stopwoorden"],
     uitleg: "Telt de eh's en uhm's in een opname en geeft aan waar ze zitten. Een label erbij; audio en tekst gaan ongewijzigd door.",
     run: async (p) => { const r = await actions.uhm({ audio: p.audio }); return { stopwoorden: r.fillers, stopDuur: r.audioDuration }; } },
+  { id: "knip", groep: "luisteren", naam: "Stopwoordjes wegknippen", lev: "Desert Ant Uhm", in: ["audio"], out: ["audio", "spraak"],
+    uitleg: "Knipt de eh's en uhm's uit de opname en levert een nieuw wav-bestand. Zet Transcriberen ervoor: dan gaat een knip nooit door een woord en verdwijnen ze ook uit de tekst. Alleen wat het model zeker weet wordt geknipt; luister het resultaat na.",
+    run: knipStopwoordjes },
   { id: "clear", groep: "luisteren", naam: "Opschonen", lev: "Desert Ant Clear", in: ["audio"], out: ["audio", "spraak"],
     uitleg: "Ruis en galm weg, niveau naar −16 LUFS. Voor mensen, niet vóór transcriberen (dat wordt er slechter van).",
     run: async (p) => { const r = await (await model("clear")).enhance(p.audio.samples, p.audio.sampleRate, { targetLUFS: -16, maxGainDB: 40 }); const a = downsample(r.samples, r.sampleRate, 16000); return { audio: { ...a, duration: p.audio.duration }, spraak: toWav(a.samples, a.sampleRate) }; } },
@@ -598,6 +637,7 @@ export const RECEPTEN = [
   { id: "verslag", naam: "Overleg → verslag met Claude", kralen: ["voz", "who", "redact", "claude", "terugzetten"], invoer: "audio" },
   { id: "teamgeheugen", naam: "Vraag aan een document", kralen: ["zoeken", "antwoord"], invoer: "tekst" },
   { id: "voorlezen", naam: "Besluit voorlezen", kralen: ["b1", "voorlezen"], invoer: "tekst" },
+  { id: "zonder-eh", naam: "Opname zonder eh's", kralen: ["voz", "knip"], invoer: "audio" },
 ];
 
 // --- Invoer → startpakket ----------------------------------------------------------

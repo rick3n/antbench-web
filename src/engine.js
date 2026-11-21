@@ -26,6 +26,12 @@ const loaders = {
 };
 const loaded = {};
 /**
+ * Twee aanpakken, omdat de eerste op een iPhone niet werkte. Buiten Apple: Voz in een worker die daarna stopt
+ * (gemeten in Chrome: 1,8 → 0,7-1,0 GB tijdens de volgende stap). Op iPhone en iPad viel de pagina juist ín die
+ * worker weg, bij de eerste inferentie met WebGPU (spoor van een iPhone, iOS 26.5), terwijl Voz in de pagina zelf
+ * daar wel werkte en het pas misging bij het laden van het volgende model. Daar laden we dus eerst de kleine
+ * modellen en pas daarna Voz, in de pagina, en geven we niets vrij. Zie ook draai() in ketting/main.js.
+ *
  * Zuinig met geheugen: op een iPhone of iPad mag een tabblad veel minder geheugen gebruiken dan op Android of een
  * laptop, en gooit Safari de pagina zonder melding weg als het te veel wordt. Dan laden we geen tweede model
  * bovenop het eerste: kleine modellen geven we vrij zodra hun stap klaar is, en Voz (±1,2 GB, zonder eigen
@@ -34,7 +40,7 @@ const loaded = {};
  */
 const apple = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 const bewaardZuinig = (() => { try { return localStorage.getItem("antbench.zuinig"); } catch { return null; } })();
-export const geheugen = { zuinig: bewaardZuinig != null ? bewaardZuinig === "1" : apple || (navigator.deviceMemory ?? 8) <= 4 };
+export const geheugen = { zuinig: bewaardZuinig != null ? bewaardZuinig === "1" : apple || (navigator.deviceMemory ?? 8) <= 4, apple };
 export function zetZuinig(aan) { geheugen.zuinig = aan; try { localStorage.setItem("antbench.zuinig", aan ? "1" : "0"); } catch {} }
 /** Eén model uit het geheugen halen; de volgende model(naam) laadt het opnieuw uit de modelcache. Voz kan dit niet. */
 export async function geefVrij(name) {

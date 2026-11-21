@@ -99,6 +99,7 @@ doorgaat; anders gaat de tekst ongewijzigd door.
 | **Transcriberen** | Desert Ant Voz | audio → tekst | Spraak naar tekst, met per woord het tijdstip. Herkent de taal zelf. |
 | **Sprekers** | Desert Ant Who | audio → sprekers, tekst | Wie sprak wanneer. Is er al een transcript, dan wordt het per spreker ingedeeld. |
 | **Gesproken taal** | Desert Ant Ear | audio → taal (label) | Welke taal er gesproken wordt, uit de eerste halve minuut. |
+| **Stopwoordjes wegknippen** | Desert Ant Uhm | audio → audio, spraak (wav) | Knipt de eh's en uhm's uit de opname. Met *Transcriberen* ervoor gaat een knip nooit door een woord en verdwijnen ze ook uit de tekst. Alleen wat het model zeker weet wordt geknipt (de strenge stand). Het model is getraind op Engels; Nederlands is door de makers niet gemeten. Luister het resultaat na. |
 | **Opschonen** | Desert Ant Clear | audio → audio | Ruis en galm weg, volume gelijkgetrokken. Bedoeld om terug te luisteren. Niet vóór *Transcriberen* zetten: het transcript wordt er slechter van. |
 | **Stopwoordjes** | Desert Ant Uhm | audio → stopwoordjes (label) | Telt de eh's en uhm's in een opname en geeft aan waar ze zitten. |
 
@@ -232,7 +233,9 @@ Schuingedrukte kralen bestaan nog niet; de ketting stopt daar.
 
 ## Wat nog niet goed gaat
 
-**iPhone en iPad.** Safari geeft een tabblad weinig geheugen en gooit de pagina zonder melding weg als het te veel wordt. Het transcriptiemodel gebruikt in de browser ongeveer 1,2 GB. Daarom staat op die toestellen *Zuinig met geheugen* aan: het transcriberen draait apart en geeft zijn geheugen terug voordat de volgende stap begint. Gemeten in Chrome op een laptop zakt het geheugen tijdens de stap *Sprekers* daarmee van ongeveer 1,8 GB naar onder 1 GB. Op een echte iPhone is dit nog niet bevestigd, en het taalmodel (de schrijfkralen) blijft daar een risico. De eerste test op een iPhone met iOS 26.5 liep ook met deze modus nog vast; daarom legt de pagina sinds 0.15.0 een *spoor* vast (stappen, tijden en toestelgegevens, geen inhoud) dat na het wegvallen te delen is.
+**Opnemen in een zaal.** De browser bewerkt microfoongeluid standaard alsof je belt: ruisonderdrukking drukt verre stemmen weg en het volume regelt zich op wie het dichtst bij zit. Kies bij *Opnemen van* voor *zaal of vergadertafel* om dat uit te zetten; er komt dan ook meer zaalgeluid en galm mee. Niet elk toestel volgt de instelling op (de pagina meldt het als het toestel een bewerking aanhoudt), en de microfoon van een telefoon blijft klein: midden op tafel leggen of een losse tafelmicrofoon doet meer dan elke instelling. Transcribeer de ruwe opname; *Opschonen* is voor de luisterversie.
+
+**iPhone en iPad.** Safari geeft een tabblad weinig geheugen en gooit de pagina zonder melding weg als het te veel wordt. Het transcriptiemodel gebruikt in de browser ongeveer 1,2 GB. Daarom staat op die toestellen *Zuinig met geheugen* aan: het transcriberen draait apart en geeft zijn geheugen terug voordat de volgende stap begint. Gemeten in Chrome op een laptop zakt het geheugen tijdens de stap *Sprekers* daarmee van ongeveer 1,8 GB naar onder 1 GB. Op een echte iPhone is dit nog niet bevestigd, en het taalmodel (de schrijfkralen) blijft daar een risico. De eerste test op een iPhone met iOS 26.5 liep ook met deze modus nog vast; daarom legt de pagina sinds 0.15.0 een *spoor* vast (stappen, tijden en toestelgegevens, geen inhoud) dat na het wegvallen te delen is. Dat spoor liet zien dat de pagina op de iPhone wegviel tijdens het transcriberen in het aparte proces. Sinds 0.16.0 draait het transcriptiemodel daar weer in de pagina zelf en worden de kleine modellen ervoor geladen in plaats van erna. Of dat genoeg is, moet een nieuwe test uitwijzen.
 
 - **Het kleine taalmodel is beperkt.** Standaard draait Qwen3-0.6B, omdat het
   grotere model (1,7B) op veel toestellen te veel grafisch geheugen vraagt. In
@@ -347,6 +350,7 @@ een gebruiker direct te zien welke versie die draaide.
 | 0.14.0 | Archief: elke run wordt op het toestel bewaard en is terug te halen met invoer, stappen en resultaat; opnieuw draaien vanaf een stap (*Verslag opnieuw maken*); ZIP-export en -import per sessie; bewaartermijn (standaard 30 dagen) en *Alles wissen* |
 | 0.14.1 | Zuinig met geheugen (vanzelf aan op iPhone en iPad): transcriberen draait in een eigen worker die daarna stopt, zodat het geheugen van Voz (±1,2 GB) vrij is voordat het volgende model laadt; kleine modellen worden na hun stap vrijgegeven; de gedecodeerde opname wordt losgelaten zodra geen stap hem meer nodig heeft |
 | 0.15.0 | Voorlezen: stemkeuze met Nathalie (Vlaams) als standaard en de stem van het toestel als alternatief. Spoor: valt de pagina weg tijdens het rijgen (iPhone), dan laat de volgende keer een melding zien bij welke stap, met toestelgegevens om door te sturen; zonder inhoud van de invoer |
+| 0.16.0 | Nieuwe kraal *Stopwoordjes wegknippen* en verhaal *Opname zonder eh's*; opnemen van *dichtbij* of *zaal of vergadertafel* (zonder ruisonderdrukking en automatisch volume); iPhone en iPad: de kleine modellen laden vóór het transcriptiemodel, dat weer in de pagina zelf draait (in een worker viel de pagina daar weg bij de eerste inferentie) |
 
 Verandert `package-lock.json`, zet dan `npmDepsHash` in `default.nix` opnieuw
 (`nix run nixpkgs#prefetch-npm-deps -- package-lock.json`).

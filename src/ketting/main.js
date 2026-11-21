@@ -5,7 +5,9 @@ import JSZip from "jszip";
 import { $, BASE, VERSION, setStatus, setProgress, netSummary } from "../ui.js";
 import { MODULES, GROEPEN, RECEPTEN, SLEUTELS, byId, startpakket, llmInstelling, kiesLlm, LLM_KEUZE, claudeInstelling, zetClaude, CLAUDE_MODELLEN, VOORBEELD_SJABLOON, stemInstelling, STEMMEN, kiesStem, ontgrendelToestelstem, toestelstem } from "./modules.js";
 import { fileToText } from "../engine.js";
-import { fmt, grootte, geheugen, zetZuinig, geefAllesVrij } from "../engine.js";
+import { fmt, grootte, geheugen, zetZuinig, geefAllesVrij, model } from "../engine.js";
+// Welk model van de motor een kraal gebruikt; nodig om op iPhone en iPad de kleine modellen vóór Voz te laden.
+const MODEL_VAN = { who: "who", redact: "redact", ear: "ear", uhm: "uhm", knip: "uhm", clear: "clear", gist: "gist", tongue: "tongue", toxic: "toxic" };
 import { bewaar } from "../export.js";
 import { spoor, spoorStart, spoorKlaar, vorigeKeer, spoorWeg, spoorTekst } from "../spoor.js";
 import { archiefInstelling, zetArchief, bewaarSessie, haalSessie, wisSessie, wisAlles, lijst, ruimOp, ruimte, alsZip, uitZip } from "./archief.js";
@@ -75,7 +77,7 @@ function tekenKetting() {
   $("stem-rij").style.display = ketting.some((id) => byId[id].stem) ? "" : "none";
   // gebruikersscherm: alleen de invoer tonen die deze ketting nodig heeft
   const nodig = gebruik ? byId[ketting[0]]?.in.find((x) => ["audio", "beeld", "tekst"].includes(x)) : null;
-  $("rec").style.display = !nodig || nodig === "audio" ? "" : "none"; $("cam").style.display = !nodig || nodig === "beeld" ? "" : "none"; $("tekst").style.display = !nodig || nodig === "tekst" ? "" : "none";
+  $("rec").style.display = $("opname-rij").style.display = !nodig || nodig === "audio" ? "" : "none"; $("cam").style.display = !nodig || nodig === "beeld" ? "" : "none"; $("tekst").style.display = !nodig || nodig === "tekst" ? "" : "none";
   $("proef").href = link(true);
   $("claude-paneel").style.display = ketting.some((id) => byId[id].extern) ? "" : "none";
   $("go").disabled = !ketting.length || !start.size || bezig;
@@ -168,15 +170,24 @@ claudeInstelling.bevestig = ({ tekst, model, gemaskeerd, aantalPgg }) => new Pro
 $("pick").onclick = () => $("file").click();
 $("file").onchange = (e) => { const f = e.target.files?.[0]; if (f) zetBestand(f, f.name); e.target.value = ""; };
 $("tekst").oninput = () => { invoer.tekst = $("tekst").value; if (invoer.tekst.trim()) { invoer.file = null; $("invoer-info").textContent = `${invoer.tekst.trim().split(/\s+/).length} woorden getypt`; $("preview-audio").style.display = $("preview-beeld").style.display = "none"; } uitkomsten = []; tekenKetting(); };
+let opnameNoot = "";
+try { $("opname-soort").value = localStorage.getItem("antbench.opname") === "zaal" ? "zaal" : "dichtbij"; } catch {}
+$("opname-soort").onchange = (e) => { try { localStorage.setItem("antbench.opname", e.target.value); } catch {} };
 $("rec").onclick = async () => {
   const btn = $("rec");
   if (recorder?.state === "recording") { recorder.stop(); return; }
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    chunks = []; recorder = new MediaRecorder(stream);
+    // Dichtbij: de standaard van de browser, afgesteld op bellen (echo- en ruisonderdrukking, automatisch volume).
+    // Zaal: die bewerkingen uit, want ze drukken verre stemmen weg en regelen het volume op wie het dichtst bij zit.
+    const zaal = $("opname-soort").value === "zaal";
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: zaal ? { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 1 } : true });
+    const inst = stream.getAudioTracks()[0]?.getSettings?.() ?? {};
+    const nog = ["echoCancellation", "noiseSuppression", "autoGainControl"].filter((k) => inst[k] === true).map((k) => ({ echoCancellation: "echo-onderdrukking", noiseSuppression: "ruisonderdrukking", autoGainControl: "automatisch volume" })[k]);
+    opnameNoot = !zaal ? "dichtbij" : nog.length ? `zaal, maar dit toestel houdt ${nog.join(" en ")} aan` : "zaal, zonder bewerking";
+    chunks = []; recorder = zaal ? new MediaRecorder(stream, { audioBitsPerSecond: 128000 }) : new MediaRecorder(stream);
     recorder.ondataavailable = (e) => chunks.push(e.data);
-    recorder.onstop = () => { stream.getTracks().forEach((t) => t.stop()); btn.textContent = "● Opnemen"; btn.classList.remove("rec"); const b = new Blob(chunks, { type: recorder.mimeType }); zetBestand(new File([b], `opname-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-")}.webm`, { type: b.type }), "opname"); };
-    recorder.start(); btn.textContent = "■ Stop"; btn.classList.add("rec"); setStatus("Opnemen…");
+    recorder.onstop = () => { stream.getTracks().forEach((t) => t.stop()); btn.textContent = "● Opnemen"; btn.classList.remove("rec"); const b = new Blob(chunks, { type: recorder.mimeType }); zetBestand(new File([b], `opname-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-")}.webm`, { type: b.type }), `opname (${opnameNoot})`); };
+    recorder.start(); btn.textContent = "■ Stop"; btn.classList.add("rec"); setStatus(`Opnemen (${opnameNoot})…`);
   } catch (e) { setStatus(`Microfoon niet beschikbaar: ${e.message}`); }
 };
 $("cam").onclick = () => $("camfile").click();
@@ -197,6 +208,7 @@ function samenvatting(m, d, pakket) {
   if (d.zekerheid != null) return `${telWoorden(d.tekst)} woorden · ${d.zekerheid} % zeker`;
   if (d.overgeslagen) return `overgeslagen: ${d.overgeslagen}`;
   if (d.tekst != null && m.out.includes("tekst")) return `${d.tekst.split(/\s+/).filter(Boolean).length} woorden`;
+  if (d.geknipt) return d.geknipt.aantal ? `${d.geknipt.aantal} weggeknipt · ${d.geknipt.seconden.toFixed(1)} s korter` : "geen stopwoordjes gevonden";
   if (d.spraak) return `${grootte(d.spraak.size)} spraak`;
   if (d.voorgelezen) return `voorgelezen · ${d.voorgelezen.stem}`;
   if (d.sprekers) return `${d.sprekerAantal} sprekers`;
@@ -236,6 +248,14 @@ async function draai(vanaf = 0) {
   }
   catch (e) { setStatus(`Invoer mislukt: ${e.message}`); spoorKlaar(`invoer mislukt: ${e.message}`); bezig = false; tekenKetting(); return; }
   spoor(`invoer gelezen${pakket.audio ? `: ${fmt(pakket.audio.duration)} audio op ${pakket.audio.sampleRate} Hz` : ""}`);
+  // iPhone en iPad: de pagina viel weg zodra er ná Voz nog een model geladen werd. Daarom eerst alles laden wat
+  // later in de ketting nodig is, en Voz als laatste. Die modellen blijven daarna staan.
+  const iv = ketting.indexOf("voz", vanaf);
+  if (geheugen.zuinig && geheugen.apple && iv >= 0) {
+    const straks = [...new Set(ketting.slice(iv + 1).map((id) => MODEL_VAN[id]).filter(Boolean))];
+    for (const naam of straks) { try { setStatus(`Voorbereiden: ${naam} laden…`); await model(naam); } catch (e) { spoor(`vooraf laden ${naam} mislukt: ${e.message ?? e}`); } }
+    if (straks.length) spoor(`vooraf geladen: ${straks.join(", ")}`);
+  }
   for (let i = vanaf; i < ketting.length; i++) {
     const m = byId[ketting[i]]; const tb = performance.now();
     document.querySelectorAll(".bead")[i]?.classList.add("bezig");
@@ -249,7 +269,7 @@ async function draai(vanaf = 0) {
       Object.assign(pakket, d); spoor(`stap ${i + 1} ${m.id}: klaar`);
       // Wat hierna niemand meer nodig heeft, gaat het geheugen uit: de gedecodeerde opname, en op zuinige toestellen het model.
       if (pakket.audio && !ketting.slice(i + 1).some((id) => byId[id].in.includes("audio"))) delete pakket.audio;
-      if (geheugen.zuinig && i < ketting.length - 1) { await geefAllesVrij(); await new Promise((r) => setTimeout(r, 150)); }
+      if (geheugen.zuinig && !geheugen.apple && i < ketting.length - 1) { await geefAllesVrij(); await new Promise((r) => setTimeout(r, 150)); }
       const nieuw = d.tekst != null && d.tekst !== tekstVoor;
       const door = pakket.tekst == null ? "" : nieuw ? `nieuwe tekst (${telWoorden(pakket.tekst)} woorden)` : `tekst ongewijzigd (${telWoorden(pakket.tekst)} woorden)`;
       uitkomsten[i] = { id: m.id, ok: true, samenvatting: samenvatting(m, d, pakket), pakket: d, ms: performance.now() - tb, kreeg, door, nieuw, labels: labels(pakket) };
@@ -379,6 +399,8 @@ function kaart(i) {
   if (d.zekerheid != null && d.zekerheid < 70) { const w = document.createElement("p"); w.className = "let-op"; w.textContent = `Let op: de herkenning is onzeker (${d.zekerheid} %). Fotografeer recht van boven, met het stuk beeldvullend en scherp, bij gelijkmatig licht.`; voeg("", w); }
   if (d.passages) { voeg(`Gevonden passages, beste eerst · ${d.zoekmodel}`, tabel(d.passages.map((x, j) => [`[${j + 1}] passage ${x.nr} van ${x.van} · ${Math.round(x.score * 100)} %`, open ? x.tekst : x.tekst.slice(0, 160).replace(/\s+\S*$/, "") + (x.tekst.length > 160 ? "…" : "")]))); }
   else if (d.tekst != null && m.out.includes("tekst")) tekstblok(d.tekst, `${m.id === "redact" ? "Gemaskeerde tekst" : "Nieuwe tekst"}${d.delen > 1 ? ` · gemaakt in ${d.delen} delen` : ""}`);
+  if (d.geknipt) voeg("Stopwoordjes weggeknipt", tabel([["Aantal", d.geknipt.aantal], ["Korter", `${d.geknipt.seconden.toFixed(1)} s (van ${fmt(d.geknipt.was)} naar ${fmt(d.geknipt.was - d.geknipt.seconden)})`], ["Knipgrenzen", d.geknipt.metWoorden ? "langs de woorden uit het transcript" : "zonder transcript; zet Transcriberen ervoor om geen woorden te raken"], ...(open ? d.geknipt.waar : d.geknipt.waar.slice(0, 5)).map((x) => [fmt(x.start), `${(x.end - x.start).toFixed(2)} s`]), ...(!open && d.geknipt.waar.length > 5 ? [["…", `en nog ${d.geknipt.waar.length - 5}`]] : [])]));
+  if (d.geknipt && d.tekst != null) tekstblok(d.tekst, "Tekst zonder stopwoordjes");
   if (d.voorgelezen) {
     const w = document.createElement("div"); w.className = "row";
     const lees = document.createElement("button"); lees.textContent = "▶ Lees voor"; lees.onclick = (e) => { e.stopPropagation(); toestelstem(d.voorleestekst ?? "").catch((x) => setStatus(`Voorlezen mislukt: ${x.message}`)); };
