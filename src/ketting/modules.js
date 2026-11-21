@@ -46,13 +46,19 @@ export function knipUit(audio, vakken) {
   const naar = (x) => { let af = 0; for (const w of weg) { if (x >= w.end) af += w.end - w.start; else if (x > w.start) af += x - w.start; else break; } return x - af; };
   return { samples: uit, sampleRate: sr, duration: uit.length / sr, weg, seconden: weg.reduce((s, w) => s + w.end - w.start, 0), naar };
 }
+// Hoe zeker het model moet zijn voordat er geknipt wordt. De teller (kraal Stopwoordjes) gebruikt "gewoon". De
+// makers raden "voorzichtig" aan voor automatisch knippen, maar in de praktijk bleven er dan veel eh's staan.
+export const KNIPSTANDEN = { precision: "voorzichtig · alleen wat zeker is (vanaf 75 %)", balanced: "gewoon · wat de teller ook ziet (vanaf 65 %)", recall: "ruim · liever te veel dan te weinig" };
+const bewaardeKnip = (() => { try { return localStorage.getItem("antbench.knip"); } catch { return null; } })();
+export const knipInstelling = { stand: KNIPSTANDEN[bewaardeKnip] ? bewaardeKnip : "balanced" };
+export function kiesKnip(s) { if (!KNIPSTANDEN[s]) return; knipInstelling.stand = s; try { localStorage.setItem("antbench.knip", s); } catch {} }
 async function knipStopwoordjes(p) {
-  // De strenge stand: alleen knippen wat het model zeker weet. Met de woorden uit het transcript erbij schuift het
-  // model de grenzen zo dat een knip nooit door een echt woord gaat, en vallen de eh's ook uit de tekst.
-  const r = await (await model("uhm")).detect(p.audio.samples, p.audio.sampleRate, { bias: "precision", ...(p.woorden?.length ? { words: p.woorden.map((w) => ({ start: w.start, end: w.end, text: w.text })) } : {}) });
+  // Met de woorden uit het transcript erbij schuift het model de grenzen zo dat een knip nooit door een echt woord
+  // gaat, en vallen de eh's ook uit de tekst. Zonder transcript knipt het op het geluid alleen.
+  const r = await (await model("uhm")).detect(p.audio.samples, p.audio.sampleRate, { bias: knipInstelling.stand, ...(p.woorden?.length ? { words: p.woorden.map((w) => ({ start: w.start, end: w.end, text: w.text })) } : {}) });
   const k = knipUit(p.audio, r.fillers);
   const uit = { audio: { samples: k.samples, sampleRate: k.sampleRate, duration: k.duration }, spraak: toWav(k.samples, k.sampleRate),
-    geknipt: { aantal: r.fillers.length, seconden: k.seconden, was: p.audio.duration, metWoorden: !!r.words, waar: k.weg.map((w) => ({ start: w.start, end: w.end })) } };
+    geknipt: { aantal: r.fillers.length, seconden: k.seconden, was: p.audio.duration, metWoorden: !!r.words, stand: KNIPSTANDEN[knipInstelling.stand].split(" · ")[0], waar: k.weg.map((w) => ({ start: w.start, end: w.end })) } };
   if (r.words) {
     uit.woorden = r.words.map((w) => ({ ...w, start: k.naar(w.start), end: k.naar(w.end) }));
     if (p.sprekers) uit.sprekers = p.sprekers.map((t) => ({ ...t, start: k.naar(t.start), end: k.naar(t.end) })).filter((t) => t.end > t.start);
@@ -541,8 +547,8 @@ export const MODULES = [
   { id: "uhm", groep: "luisteren", naam: "Stopwoordjes", lev: "Desert Ant Uhm", in: ["audio"], out: ["stopwoorden"],
     uitleg: "Telt de eh's en uhm's in een opname en geeft aan waar ze zitten. Een label erbij; audio en tekst gaan ongewijzigd door.",
     run: async (p) => { const r = await actions.uhm({ audio: p.audio }); return { stopwoorden: r.fillers, stopDuur: r.audioDuration }; } },
-  { id: "knip", groep: "luisteren", naam: "Stopwoordjes wegknippen", lev: "Desert Ant Uhm", in: ["audio"], out: ["audio", "spraak"],
-    uitleg: "Knipt de eh's en uhm's uit de opname en levert een nieuw wav-bestand. Zet Transcriberen ervoor: dan gaat een knip nooit door een woord en verdwijnen ze ook uit de tekst. Alleen wat het model zeker weet wordt geknipt; luister het resultaat na.",
+  { id: "knip", groep: "luisteren", naam: "Stopwoordjes wegknippen", lev: "Desert Ant Uhm", in: ["audio"], out: ["audio", "spraak"], knip: true,
+    uitleg: "Knipt de eh's en uhm's uit de opname en levert een nieuw wav-bestand. Vóór Transcriberen: het transcript wordt gemaakt van de opgeschoonde opname. Ná Transcriberen: de knip gaat langs de woordgrenzen en de eh's verdwijnen ook uit de tekst. Hoe streng er geknipt wordt, kies je bij de invoer. Luister het resultaat na.",
     run: knipStopwoordjes },
   { id: "clear", groep: "luisteren", naam: "Opschonen", lev: "Desert Ant Clear", in: ["audio"], out: ["audio", "spraak"],
     uitleg: "Ruis en galm weg, niveau naar −16 LUFS. Voor mensen, niet vóór transcriberen (dat wordt er slechter van).",
@@ -638,7 +644,7 @@ export const RECEPTEN = [
   { id: "verslag", naam: "Overleg → verslag met Claude", kralen: ["voz", "who", "redact", "claude", "terugzetten"], invoer: "audio" },
   { id: "teamgeheugen", naam: "Vraag aan een document", kralen: ["zoeken", "antwoord"], invoer: "tekst" },
   { id: "voorlezen", naam: "Besluit voorlezen", kralen: ["b1", "voorlezen"], invoer: "tekst" },
-  { id: "zonder-eh", naam: "Opname zonder eh's", kralen: ["voz", "knip"], invoer: "audio" },
+  { id: "zonder-eh", naam: "Opname zonder eh's", kralen: ["knip", "voz"], invoer: "audio" },
 ];
 
 // --- Invoer → startpakket ----------------------------------------------------------

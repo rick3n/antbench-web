@@ -163,3 +163,6 @@ body.gebruik .archief-inst > label { display: flex; align-items: center; gap: .4
 #spoor p { margin: .3rem 0; font-size: .92rem; } #spoor pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: .74rem; max-height: 22rem; overflow: auto; margin: .4rem 0 0; }
 body.gebruik #stem-rij label { display: flex; flex-direction: column; gap: .2rem; } body.gebruik #stem { width: 100%; font: inherit; padding: .5rem; }
 body.gebruik #opname-rij label { display: flex; flex-direction: column; gap: .2rem; } body.gebruik #opname-soort { width: 100%; font: inherit; padding: .5rem; }
+body.gebruik #knip-rij label { display: flex; flex-direction: column; gap: .2rem; } body.gebruik #knip-stand { width: 100%; font: inherit; padding: .5rem; }
+/* lange waarden in de tabellen van een kaart breken af in plaats van buiten beeld te lopen */
+#uitkomst table, #eindresultaat table { max-width: 100%; } #uitkomst td, #eindresultaat td { overflow-wrap: anywhere; } #uitkomst td:first-child, #eindresultaat td:first-child { white-space: nowrap; }

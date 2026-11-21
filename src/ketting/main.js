@@ -3,7 +3,7 @@
 import "./style.css";
 import JSZip from "jszip";
 import { $, BASE, VERSION, setStatus, setProgress, netSummary, verouderd, VEROUDERD_TEKST } from "../ui.js";
-import { MODULES, GROEPEN, RECEPTEN, SLEUTELS, byId, startpakket, llmInstelling, kiesLlm, LLM_KEUZE, claudeInstelling, zetClaude, CLAUDE_MODELLEN, VOORBEELD_SJABLOON, stemInstelling, STEMMEN, kiesStem, ontgrendelToestelstem, toestelstem } from "./modules.js";
+import { MODULES, GROEPEN, RECEPTEN, SLEUTELS, byId, startpakket, llmInstelling, kiesLlm, LLM_KEUZE, claudeInstelling, zetClaude, CLAUDE_MODELLEN, VOORBEELD_SJABLOON, stemInstelling, STEMMEN, kiesStem, ontgrendelToestelstem, toestelstem, KNIPSTANDEN, knipInstelling, kiesKnip } from "./modules.js";
 import { fileToText } from "../engine.js";
 import { fmt, grootte, geheugen, zetZuinig, geefAllesVrij, imageToPixels } from "../engine.js";
 // Kralen zonder model: die kosten geen geheugen en hoeven op een iPhone geen schone pagina.
@@ -77,6 +77,7 @@ function tekenKetting() {
   const eind = document.createElement("div"); eind.className = "eindkraal"; eind.innerHTML = `<span class="bol">🎁</span><span class="naam">uitkomst</span>`; lane.append(eind);
   $("vraag").style.display = ketting.some((id) => byId[id].vraag) ? "" : "none";
   $("stem-rij").style.display = ketting.some((id) => byId[id].stem) ? "" : "none";
+  $("knip-rij").style.display = ketting.some((id) => byId[id].knip) ? "" : "none";
   // gebruikersscherm: alleen de invoer tonen die deze ketting nodig heeft
   const nodig = gebruik ? byId[ketting[0]]?.in.find((x) => ["audio", "beeld", "tekst"].includes(x)) : null;
   $("rec").style.display = $("opname-rij").style.display = !nodig || nodig === "audio" ? "" : "none"; $("cam").style.display = !nodig || nodig === "beeld" ? "" : "none"; $("tekst").style.display = !nodig || nodig === "tekst" ? "" : "none";
@@ -420,7 +421,7 @@ function kaart(i) {
   if (d.zekerheid != null && d.zekerheid < 70) { const w = document.createElement("p"); w.className = "let-op"; w.textContent = `Let op: de herkenning is onzeker (${d.zekerheid} %). Fotografeer recht van boven, met het stuk beeldvullend en scherp, bij gelijkmatig licht.`; voeg("", w); }
   if (d.passages) { voeg(`Gevonden passages, beste eerst · ${d.zoekmodel}`, tabel(d.passages.map((x, j) => [`[${j + 1}] passage ${x.nr} van ${x.van} · ${Math.round(x.score * 100)} %`, open ? x.tekst : x.tekst.slice(0, 160).replace(/\s+\S*$/, "") + (x.tekst.length > 160 ? "…" : "")]))); }
   else if (d.tekst != null && m.out.includes("tekst")) tekstblok(d.tekst, `${m.id === "redact" ? "Gemaskeerde tekst" : "Nieuwe tekst"}${d.delen > 1 ? ` · gemaakt in ${d.delen} delen` : ""}`);
-  if (d.geknipt) voeg("Stopwoordjes weggeknipt", tabel([["Aantal", d.geknipt.aantal], ["Korter", `${d.geknipt.seconden.toFixed(1)} s (van ${fmt(d.geknipt.was)} naar ${fmt(d.geknipt.was - d.geknipt.seconden)})`], ["Knipgrenzen", d.geknipt.metWoorden ? "langs de woorden uit het transcript" : "zonder transcript; zet Transcriberen ervoor om geen woorden te raken"], ...(open ? d.geknipt.waar : d.geknipt.waar.slice(0, 5)).map((x) => [fmt(x.start), `${(x.end - x.start).toFixed(2)} s`]), ...(!open && d.geknipt.waar.length > 5 ? [["…", `en nog ${d.geknipt.waar.length - 5}`]] : [])]));
+  if (d.geknipt) voeg("Stopwoordjes weggeknipt", tabel([["Aantal", d.geknipt.aantal], ...(d.geknipt.stand ? [["Stand", d.geknipt.stand]] : []), ["Korter", `${d.geknipt.seconden.toFixed(1)} s (van ${fmt(d.geknipt.was)} naar ${fmt(d.geknipt.was - d.geknipt.seconden)})`], ["Knipgrenzen", d.geknipt.metWoorden ? "langs de woorden uit het transcript" : "op het geluid, zonder transcript"], ...(open ? d.geknipt.waar : d.geknipt.waar.slice(0, 5)).map((x) => [fmt(x.start), `${(x.end - x.start).toFixed(2)} s`]), ...(!open && d.geknipt.waar.length > 5 ? [["…", `en nog ${d.geknipt.waar.length - 5}`]] : [])]));
   if (d.geknipt && d.tekst != null) tekstblok(d.tekst, "Tekst zonder stopwoordjes");
   if (d.voorgelezen) {
     const w = document.createElement("div"); w.className = "row";
@@ -562,6 +563,8 @@ $("archief-file").onchange = async (e) => { const f = e.target.files?.[0]; e.tar
 zeker($("archief-wis"), async () => { await wisAlles(); tekenArchief(); setStatus("Het archief op dit toestel is leeg."); });
 ruimOp().catch(() => 0).then((n) => { tekenArchief(); if (n) setStatus(`${n} ${n === 1 ? "sessie" : "sessies"} ouder dan ${archiefInstelling.dagen} dagen uit het archief verwijderd.`); });
 
+for (const [id, naam] of Object.entries(KNIPSTANDEN)) $("knip-stand").add(new Option(naam, id));
+$("knip-stand").value = knipInstelling.stand; $("knip-stand").onchange = (e) => kiesKnip(e.target.value);
 for (const [id, naam] of Object.entries(STEMMEN)) $("stem").add(new Option(naam, id));
 $("stem").value = stemInstelling.stem; $("stem").onchange = (e) => kiesStem(e.target.value);
 $("zuinig").checked = geheugen.zuinig; $("zuinig").onchange = (e) => zetZuinig(e.target.checked);

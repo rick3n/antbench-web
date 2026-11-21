@@ -99,7 +99,7 @@ doorgaat; anders gaat de tekst ongewijzigd door.
 | **Transcriberen** | Desert Ant Voz | audio → tekst | Spraak naar tekst, met per woord het tijdstip. Herkent de taal zelf. |
 | **Sprekers** | Desert Ant Who | audio → sprekers, tekst | Wie sprak wanneer. Is er al een transcript, dan wordt het per spreker ingedeeld. |
 | **Gesproken taal** | Desert Ant Ear | audio → taal (label) | Welke taal er gesproken wordt, uit de eerste halve minuut. |
-| **Stopwoordjes wegknippen** | Desert Ant Uhm | audio → audio, spraak (wav) | Knipt de eh's en uhm's uit de opname. Met *Transcriberen* ervoor gaat een knip nooit door een woord en verdwijnen ze ook uit de tekst. Alleen wat het model zeker weet wordt geknipt (de strenge stand). Het model is getraind op Engels; Nederlands is door de makers niet gemeten. Luister het resultaat na. |
+| **Stopwoordjes wegknippen** | Desert Ant Uhm | audio → audio, spraak (wav) | Knipt de eh's en uhm's uit de opname. Vóór *Transcriberen* wordt het transcript gemaakt van de opgeschoonde opname; ná *Transcriberen* gaat de knip langs de woordgrenzen en verdwijnen ze ook uit de tekst. Je kiest hoe streng er geknipt wordt: *voorzichtig* (vanaf 75 % zekerheid), *gewoon* (vanaf 65 %, de standaard en gelijk aan de teller) of *ruim*. Het model is getraind op Engels; Nederlands is door de makers niet gemeten. Luister het resultaat na. |
 | **Opschonen** | Desert Ant Clear | audio → audio | Ruis en galm weg, volume gelijkgetrokken. Bedoeld om terug te luisteren. Niet vóór *Transcriberen* zetten: het transcript wordt er slechter van. |
 | **Stopwoordjes** | Desert Ant Uhm | audio → stopwoordjes (label) | Telt de eh's en uhm's in een opname en geeft aan waar ze zitten. |
 
@@ -214,6 +214,7 @@ Bovenaan de ketting staan dertien verhalen. Eén klik en de kralen liggen klaar.
 | Burgerbrief in B1 | B1 → Naar Engels → Voorlezen | tekst |
 | Anderstalige brief | Scan lezen → Taal → Naar Nederlands → Samenvatten | foto |
 | Overleg → verslag met Claude | Transcriberen → Sprekers → Maskeren → Verslag door Claude → Namen terugzetten | opname |
+| Opname zonder eh's | Stopwoordjes wegknippen → Transcriberen | opname |
 | Vraag aan een document | Zoeken → Antwoord geven | tekst + vraag |
 | Besluit voorlezen | B1 → Voorlezen | tekst |
 
@@ -354,6 +355,7 @@ een gebruiker direct te zien welke versie die draaide.
 | 0.16.1 | iPhone en iPad: het transcriptiemodel draait in een pagina waar niets anders geladen is; daarna bewaart de ketting de tussenstand, herlaadt de pagina en gaat vanzelf verder bij de volgende stap. Vooraf laden van de kleine modellen (0.16.0) gaf daar *Out of memory* en is vervallen |
 | 0.16.2 | iPhone en iPad: één model per pagina. De pagina herlaadt vóór elke kraal die een model nodig heeft als er al een geladen is, en gaat vanzelf verder (op de iPhone viel de pagina ook weg bij *Maskeren* na *Sprekers*). *Namen terugzetten* geeft geen fout meer als er niets gemaskeerd hoefde te worden |
 | 0.16.3 | Stond de pagina nog open tijdens een nieuwe uitrol, dan mislukte het laden van een model met *Failed to fetch dynamically imported module*. De ketting bewaart nu de tussenstand, herlaadt de pagina (die dan de nieuwe versie is) en gaat verder bij dezelfde stap; de andere pagina's melden dat verversen nodig is |
+| 0.16.4 | *Stopwoordjes wegknippen*: keuze hoe streng er geknipt wordt (voorzichtig, gewoon, ruim), met *gewoon* als standaard omdat er met *voorzichtig* veel eh's bleven staan; het verhaal *Opname zonder eh's* knipt nu eerst en transcribeert daarna; lange regels in de kaarten breken af op een telefoon |
 
 Verandert `package-lock.json`, zet dan `npmDepsHash` in `default.nix` opnieuw
 (`nix run nixpkgs#prefetch-npm-deps -- package-lock.json`).
