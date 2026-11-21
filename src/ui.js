@@ -8,6 +8,13 @@ export const $ = (id) => document.getElementById(id);
 const status = $("status"), progress = $("progress"), result = $("result"), actions = $("resultActions");
 let busy = false, lastText = "", lastBlob = null, lastName = "";
 
+/**
+ * Na een nieuwe uitrol bestaan de programmadelen van de vorige versie niet meer op de server. Een pagina die nog
+ * openstond, krijgt dan bij het laden van een model "Failed to fetch dynamically imported module". Herkenbaar aan
+ * de tekst van de fout (per browser anders).
+ */
+export const verouderd = (e) => /dynamically imported module|module script failed|importing a module script|error loading dynamically/i.test(String(e?.message ?? e));
+export const VEROUDERD_TEKST = "Er staat een nieuwe versie van de app klaar en deze pagina is van de vorige. Ververs de pagina en start opnieuw.";
 export function setStatus(t) { if (status) status.textContent = t; }
 export function setProgress(f) { if (progress) progress.value = f; }
 export function isBusy() { return busy; }
@@ -130,7 +137,7 @@ export async function run(label, fn) {
     await fn(); ok = true;
   } catch (e) {
     console.error(e);
-    setStatus(`${label} mislukt: ${e?.message ?? e}`);
+    setStatus(verouderd(e) ? VEROUDERD_TEKST : `${label} mislukt: ${e?.message ?? e}`);
   } finally { setBusy(false); }
   await new Promise((r) => setTimeout(r, 50));   // late timing-entries binnen laten komen
   const net = netSummary(t0);

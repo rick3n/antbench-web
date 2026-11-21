@@ -353,6 +353,7 @@ een gebruiker direct te zien welke versie die draaide.
 | 0.16.0 | Nieuwe kraal *Stopwoordjes wegknippen* en verhaal *Opname zonder eh's*; opnemen van *dichtbij* of *zaal of vergadertafel* (zonder ruisonderdrukking en automatisch volume); iPhone en iPad: de kleine modellen laden vóór het transcriptiemodel, dat weer in de pagina zelf draait (in een worker viel de pagina daar weg bij de eerste inferentie) |
 | 0.16.1 | iPhone en iPad: het transcriptiemodel draait in een pagina waar niets anders geladen is; daarna bewaart de ketting de tussenstand, herlaadt de pagina en gaat vanzelf verder bij de volgende stap. Vooraf laden van de kleine modellen (0.16.0) gaf daar *Out of memory* en is vervallen |
 | 0.16.2 | iPhone en iPad: één model per pagina. De pagina herlaadt vóór elke kraal die een model nodig heeft als er al een geladen is, en gaat vanzelf verder (op de iPhone viel de pagina ook weg bij *Maskeren* na *Sprekers*). *Namen terugzetten* geeft geen fout meer als er niets gemaskeerd hoefde te worden |
+| 0.16.3 | Stond de pagina nog open tijdens een nieuwe uitrol, dan mislukte het laden van een model met *Failed to fetch dynamically imported module*. De ketting bewaart nu de tussenstand, herlaadt de pagina (die dan de nieuwe versie is) en gaat verder bij dezelfde stap; de andere pagina's melden dat verversen nodig is |
 
 Verandert `package-lock.json`, zet dan `npmDepsHash` in `default.nix` opnieuw
 (`nix run nixpkgs#prefetch-npm-deps -- package-lock.json`).

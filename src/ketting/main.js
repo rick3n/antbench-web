@@ -2,7 +2,7 @@
 // geeft zijn resultaat door aan de volgende. Alles lokaal in de browser.
 import "./style.css";
 import JSZip from "jszip";
-import { $, BASE, VERSION, setStatus, setProgress, netSummary } from "../ui.js";
+import { $, BASE, VERSION, setStatus, setProgress, netSummary, verouderd, VEROUDERD_TEKST } from "../ui.js";
 import { MODULES, GROEPEN, RECEPTEN, SLEUTELS, byId, startpakket, llmInstelling, kiesLlm, LLM_KEUZE, claudeInstelling, zetClaude, CLAUDE_MODELLEN, VOORBEELD_SJABLOON, stemInstelling, STEMMEN, kiesStem, ontgrendelToestelstem, toestelstem } from "./modules.js";
 import { fileToText } from "../engine.js";
 import { fmt, grootte, geheugen, zetZuinig, geefAllesVrij, imageToPixels } from "../engine.js";
@@ -287,6 +287,16 @@ async function draai(vanaf = 0, { vervolg = false } = {}) {
       tekenKetting(); tekenLogboek(i);
     } catch (e) {
       console.error(m.id, e); spoor(`stap ${i + 1} ${m.id}: mislukt: ${e.message ?? e}`);
+      // De pagina is van vóór een nieuwe uitrol: tussenstand bewaren, herladen (dat haalt de nieuwe versie op) en
+      // verdergaan bij deze stap. Hooguit één keer per minuut, zodat een echte storing geen herlaadlus wordt.
+      if (verouderd(e)) {
+        let net = false; try { net = Date.now() - Number(sessionStorage.getItem("antbench.herstel") || 0) < 60_000; } catch {}
+        if (!net) {
+          try { sessionStorage.setItem("antbench.herstel", String(Date.now())); spoor("nieuwe versie op de server: pagina herladen en verder bij deze stap"); setStatus("Er staat een nieuwe versie klaar; de pagina herlaadt en gaat verder…"); await bewaarVervolg({ ketting, invoer, uitkomsten: uitkomsten.slice(0, i), vanaf: i }); location.reload(); await new Promise(() => {}); }
+          catch (x) { spoor(`herstellen mislukt: ${x.message ?? x}`); }
+        }
+        uitkomsten[i] = { id: m.id, ok: false, samenvatting: "mislukt: de pagina is van een vorige versie", pakket: {} }; tekenKetting(); tekenLogboek(i); setStatus(VEROUDERD_TEKST); break;
+      }
       uitkomsten[i] = { id: m.id, ok: false, samenvatting: `mislukt: ${e.message ?? e}`, pakket: {} }; tekenKetting(); tekenLogboek(i); setStatus(`${m.naam} mislukt: ${e.message ?? e}`); break;
     }
   }
