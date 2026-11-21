@@ -5,12 +5,11 @@ import JSZip from "jszip";
 import { $, BASE, VERSION, setStatus, setProgress, netSummary } from "../ui.js";
 import { MODULES, GROEPEN, RECEPTEN, SLEUTELS, byId, startpakket, llmInstelling, kiesLlm, LLM_KEUZE, claudeInstelling, zetClaude, CLAUDE_MODELLEN, VOORBEELD_SJABLOON, stemInstelling, STEMMEN, kiesStem, ontgrendelToestelstem, toestelstem } from "./modules.js";
 import { fileToText } from "../engine.js";
-import { fmt, grootte, geheugen, zetZuinig, geefAllesVrij, model } from "../engine.js";
-// Welk model van de motor een kraal gebruikt; nodig om op iPhone en iPad de kleine modellen vóór Voz te laden.
-const MODEL_VAN = { who: "who", redact: "redact", ear: "ear", uhm: "uhm", knip: "uhm", clear: "clear", gist: "gist", tongue: "tongue", toxic: "toxic" };
+import { fmt, grootte, geheugen, zetZuinig, geefAllesVrij, geladen } from "../engine.js";
+
 import { bewaar } from "../export.js";
-import { spoor, spoorStart, spoorKlaar, vorigeKeer, spoorWeg, spoorTekst } from "../spoor.js";
-import { archiefInstelling, zetArchief, bewaarSessie, haalSessie, wisSessie, wisAlles, lijst, ruimOp, ruimte, alsZip, uitZip } from "./archief.js";
+import { spoor, spoorStart, spoorVervolg, spoorKlaar, vorigeKeer, spoorWeg, spoorTekst } from "../spoor.js";
+import { archiefInstelling, zetArchief, bewaarSessie, haalSessie, wisSessie, wisAlles, lijst, ruimOp, ruimte, alsZip, uitZip, bewaarVervolg, haalVervolg } from "./archief.js";
 
 const ICOON = { lezen: "📄", luisteren: "🎙️", kijken: "📷", begrijpen: "🔍", schrijven: "✍️", vertalen: "🌐", spreken: "🔊", samen: "🤝", buiten: "☁️" };
 const kleur = Object.fromEntries(GROEPEN.map(([id, , c]) => [id, c]));
@@ -224,7 +223,7 @@ function samenvatting(m, d, pakket) {
 
 $("go").onclick = () => draai(0);
 /** Rijgt de ketting. Met vanaf > 0 blijven de eerdere stappen staan en gaat het verder met wat die opleverden. */
-async function draai(vanaf = 0) {
+async function draai(vanaf = 0, { vervolg = false } = {}) {
   if (bezig) return;
   if (ketting.some((id) => byId[id].extern) && !claudeInstelling.sleutel) { $("claude-paneel").open = true; $("claude-sleutel").focus(); setStatus("Voer eerst je eigen Anthropic API-sleutel in; hij blijft op dit toestel."); return; }
   if (claudeInstelling.sleutel) $("claude-paneel").open = false;
@@ -233,7 +232,8 @@ async function draai(vanaf = 0) {
   const eerder = uitkomsten.slice(0, vanaf);
   bezig = true; uitkomsten = eerder; eindpakket = null; gekozenKraal = null; tekenKetting(); tekenLogboek(); $("go").disabled = true; $("progress").classList.add("on");
   const t0 = performance.now(); performance.clearResourceTimings();
-  await spoorStart(`${VERSION} · ketting ${ketting.join(",")}${vanaf ? ` vanaf stap ${vanaf + 1}` : ""} · zuinig ${geheugen.zuinig ? "aan" : "uit"} · invoer ${invoer.file ? `${soort(invoer.file)} ${grootte(invoer.file.size)} ${invoer.file.type}` : "getypte tekst"}`);
+  if (vervolg) spoorVervolg(`verder na herladen, bij stap ${vanaf + 1}`);
+  else await spoorStart(`${VERSION} · ketting ${ketting.join(",")}${vanaf ? ` vanaf stap ${vanaf + 1}` : ""} · zuinig ${geheugen.zuinig ? "aan" : "uit"} · invoer ${invoer.file ? `${soort(invoer.file)} ${grootte(invoer.file.size)} ${invoer.file.type}` : "getypte tekst"}`);
   let pakket;
   try {
     setStatus("Invoer lezen…");
@@ -248,16 +248,20 @@ async function draai(vanaf = 0) {
   }
   catch (e) { setStatus(`Invoer mislukt: ${e.message}`); spoorKlaar(`invoer mislukt: ${e.message}`); bezig = false; tekenKetting(); return; }
   spoor(`invoer gelezen${pakket.audio ? `: ${fmt(pakket.audio.duration)} audio op ${pakket.audio.sampleRate} Hz` : ""}`);
-  // iPhone en iPad: de pagina viel weg zodra er ná Voz nog een model geladen werd. Daarom eerst alles laden wat
-  // later in de ketting nodig is, en Voz als laatste. Die modellen blijven daarna staan.
-  const iv = ketting.indexOf("voz", vanaf);
-  if (geheugen.zuinig && geheugen.apple && iv >= 0) {
-    const straks = [...new Set(ketting.slice(iv + 1).map((id) => MODEL_VAN[id]).filter(Boolean))];
-    for (const naam of straks) { try { setStatus(`Voorbereiden: ${naam} laden…`); await model(naam); } catch (e) { spoor(`vooraf laden ${naam} mislukt: ${e.message ?? e}`); } }
-    if (straks.length) spoor(`vooraf geladen: ${straks.join(", ")}`);
-  }
   for (let i = vanaf; i < ketting.length; i++) {
     const m = byId[ketting[i]]; const tb = performance.now();
+    // iPhone en iPad: het transcriptiemodel past niet samen met een ander model in één tabblad. Staat het nog in
+    // het geheugen, of moet het erbij terwijl er al iets staat, dan bewaren we de tussenstand en herladen we de
+    // pagina; de ketting gaat daarna vanzelf verder bij deze stap. Alleen herladen geeft het geheugen zeker terug.
+    if (geheugen.zuinig && geheugen.apple) {
+      const staat = geladen();
+      if (m.id === "voz" ? staat.some((n) => n !== "voz") : staat.includes("voz")) {
+        spoor(`geheugen vrijmaken: pagina herladen (geladen: ${staat.join(", ")}), daarna verder bij stap ${i + 1}`);
+        setStatus("Geheugen vrijmaken, de pagina herlaadt even…");
+        try { await bewaarVervolg({ ketting, invoer, uitkomsten, vanaf: i }); location.reload(); await new Promise(() => {}); }
+        catch (e) { spoor(`tussenstand bewaren mislukt: ${e.message ?? e}; verder zonder herladen`); }
+      }
+    }
     document.querySelectorAll(".bead")[i]?.classList.add("bezig");
     if (m.komt) { uitkomsten[i] = { id: m.id, ok: false, samenvatting: "bestaat nog niet — de ketting stopt hier", pakket: {} }; tekenKetting(); tekenLogboek(i); setStatus(`"${m.naam}" bestaat nog niet; tot hier gerijgd.`); break; }
     const mist = m.in.filter((s) => pakket[s] == null);
@@ -474,7 +478,17 @@ $("deel-studio").onclick = () => deel(link(false), "Studiolink");
 $("wis").onclick = () => { ketting = []; uitkomsten = []; eindpakket = null; tekenKetting(); tekenLogboek(); bewaarHash(); };
 
 // --- Spoor: liet de pagina het de vorige keer afweten? ------------------------------------------
-{
+(async () => {
+  // Eerst: herlaadde de pagina zelf om geheugen vrij te maken? Dan de tussenstand terugzetten en verdergaan.
+  const verder = await haalVervolg().catch(() => null);
+  if (verder) {
+    ketting = verder.ketting.filter((k) => byId[k]); invoer = { file: verder.invoer.file ?? null, tekst: verder.invoer.tekst ?? "", vraag: verder.invoer.vraag ?? "" };
+    $("tekst").value = invoer.tekst; $("vraag").value = invoer.vraag;
+    if (invoer.file) $("invoer-info").textContent = `${invoer.file.name} · ${grootte(invoer.file.size)} · ${SLEUTELS[soort(invoer.file)]}`;
+    uitkomsten = verder.uitkomsten.map((u) => u && { ...u }); eindpakket = null; zetModus(); tekenKetting(); tekenLogboek();
+    draai(verder.vanaf, { vervolg: true });
+    return;
+  }
   const v = vorigeKeer();
   if (v) {
     const tekst = spoorTekst(v), box = $("spoor");
@@ -484,7 +498,7 @@ $("wis").onclick = () => { ketting = []; uitkomsten = []; eindpakket = null; tek
     $("spoor-kopie").onclick = async () => { await navigator.clipboard.writeText(tekst); $("spoor-kopie").textContent = "Gekopieerd"; };
     $("spoor-sluit").onclick = () => { spoorWeg(); box.style.display = "none"; };
   }
-}
+})();
 // --- Archief: sessies op dit toestel -----------------------------------------------------------
 const dag = (t) => new Date(t).toLocaleString("nl-NL", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 /** Knop die pas bij de tweede tik iets doet; geen dialoogvenster nodig. */

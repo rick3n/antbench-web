@@ -26,11 +26,15 @@ const loaders = {
 };
 const loaded = {};
 /**
- * Twee aanpakken, omdat de eerste op een iPhone niet werkte. Buiten Apple: Voz in een worker die daarna stopt
- * (gemeten in Chrome: 1,8 → 0,7-1,0 GB tijdens de volgende stap). Op iPhone en iPad viel de pagina juist ín die
- * worker weg, bij de eerste inferentie met WebGPU (spoor van een iPhone, iOS 26.5), terwijl Voz in de pagina zelf
- * daar wel werkte en het pas misging bij het laden van het volgende model. Daar laden we dus eerst de kleine
- * modellen en pas daarna Voz, in de pagina, en geven we niets vrij. Zie ook draai() in ketting/main.js.
+ * Twee aanpakken. Buiten Apple: Voz in een worker die daarna stopt (gemeten in Chrome: 1,8 → 0,7-1,0 GB tijdens
+ * de volgende stap). Op iPhone en iPad past Voz niet samen met een ander model in één tabblad, in geen enkele
+ * volgorde (iPhone, iOS 26.5):
+ *   - Voz in de pagina, daarna Who laden: pagina valt weg;
+ *   - Voz in een worker: pagina valt weg bij de eerste inferentie;
+ *   - eerst Who en Redact laden, dan Voz: "[webgpu] RangeError: Out of memory".
+ * Voz alleen werkt er wel. Daarom draait Voz daar in een pagina waar verder niets geladen is, en wordt de pagina
+ * daarna herladen: de tussenstand staat in IndexedDB en de ketting gaat verder bij de volgende stap. Herladen is
+ * de enige manier die het geheugen zeker teruggeeft. Zie draai() en het vervolg in ketting/main.js.
  *
  * Zuinig met geheugen: op een iPhone of iPad mag een tabblad veel minder geheugen gebruiken dan op Android of een
  * laptop, en gooit Safari de pagina zonder melding weg als het te veel wordt. Dan laden we geen tweede model
@@ -72,6 +76,8 @@ export function vozApart(audio) {
     w.postMessage({ samples, sampleRate: audio.sampleRate, wasmDir: new URL(`${BASE}ort/`, location.href).href }, [samples.buffer]);
   });
 }
+/** Welke modellen nu in het geheugen van de pagina staan. */
+export const geladen = () => Object.keys(loaded);
 /** Alle geladen modellen vrijgeven; geeft de namen terug. */
 export async function geefAllesVrij() { const namen = Object.keys(loaded); for (const n of namen) await geefVrij(n); return namen; }
 export async function model(name) {
