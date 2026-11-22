@@ -23,7 +23,9 @@ export async function spoorStart(kop) {
   spoor(kop); spoor(await toestel());
 }
 /** Verder na het herladen van de pagina: het spoor blijft staan, alleen de klok begint opnieuw. */
-export function spoorVervolg(wat) { t0 = performance.now(); spoor(wat); }
+export function spoorVervolg(wat) { t0 = performance.now(); try { localStorage.setItem(BEZIG, localStorage.getItem(BEZIG) || new Date().toISOString()); } catch {} spoor(wat); }
+/** De ketting wacht op een tik van de gebruiker (verder in een nieuw tabblad): dat is geen weggevallen pagina. */
+export function spoorPauze(wat) { spoor(wat); try { localStorage.removeItem(BEZIG); } catch {} }
 export function spoorKlaar(hoe) { spoor(hoe); try { localStorage.removeItem(BEZIG); } catch {} }
 /** Staat er nog een run "bezig" van vóór het laden van deze pagina? Dan is de pagina toen weggevallen. */
 export function vorigeKeer() {

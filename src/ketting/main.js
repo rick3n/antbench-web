@@ -8,11 +8,10 @@ import { fileToText } from "../engine.js";
 import { fmt, grootte, geheugen, zetZuinig, geefAllesVrij, imageToPixels } from "../engine.js";
 // Kralen zonder model: die kosten geen geheugen en hoeven op een iPhone geen schone pagina.
 const LICHT = new Set(["actiepunten", "claude", "terugzetten"]);
-const WACHT_NA_HERLADEN = 8;   // seconden, alleen op iPhone en iPad
 let vuil = false;   // heeft deze pagina al een model geladen? (begint na elke herlaadbeurt weer op nee)
 
 import { bewaar } from "../export.js";
-import { spoor, spoorStart, spoorVervolg, spoorKlaar, vorigeKeer, spoorWeg, spoorTekst } from "../spoor.js";
+import { spoor, spoorStart, spoorVervolg, spoorPauze, spoorKlaar, vorigeKeer, spoorWeg, spoorTekst } from "../spoor.js";
 import { archiefInstelling, zetArchief, bewaarSessie, haalSessie, wisSessie, wisAlles, lijst, ruimOp, ruimte, alsZip, uitZip, bewaarVervolg, haalVervolg } from "./archief.js";
 
 const ICOON = { lezen: "📄", luisteren: "🎙️", kijken: "📷", begrijpen: "🔍", schrijven: "✍️", vertalen: "🌐", spreken: "🔊", samen: "🤝", buiten: "☁️" };
@@ -231,8 +230,20 @@ function samenvatting(m, d, pakket) {
 }
 
 $("go").onclick = () => draai(0);
+/** iPhone en iPad: de ketting pauzeert en de gebruiker tikt om de volgende stap in een nieuw tabblad te laten lopen. */
+function toonVerder(i, m) {
+  bezig = false; $("progress").classList.remove("on"); setProgress(0); tekenKetting(); tekenLogboek();
+  const a = $("verder");
+  a.href = `${location.pathname}${location.search}#k=${ketting.join(",")}${gebruik ? "&u=1" : ""}`;
+  a.textContent = `Ga verder met stap ${i + 1} van ${ketting.length}: ${m.naam} →`;
+  $("verder-rij").style.display = ""; $("go").disabled = true;
+  setStatus(`Stap ${i} is klaar. Tik op de knop: de volgende stap loopt in een nieuw tabblad, omdat een iPhone anders te weinig geheugen heeft.`);
+  a.scrollIntoView({ block: "center", behavior: "smooth" });
+  // Na de tik neemt het nieuwe tabblad het over; dit tabblad laat zijn modellen los door naar een lege melding te gaan.
+  a.onclick = () => { spoor("getikt: nieuw tabblad geopend"); setTimeout(() => location.replace(`${BASE}verder.html`), 600); };
+}
 /** Rijgt de ketting. Met vanaf > 0 blijven de eerdere stappen staan en gaat het verder met wat die opleverden. */
-async function draai(vanaf = 0, { vervolg = false } = {}) {
+async function draai(vanaf = 0, { vervolg = false, reden = "" } = {}) {
   if (bezig) return;
   if (ketting.some((id) => byId[id].extern) && !claudeInstelling.sleutel) { $("claude-paneel").open = true; $("claude-sleutel").focus(); setStatus("Voer eerst je eigen Anthropic API-sleutel in; hij blijft op dit toestel."); return; }
   if (claudeInstelling.sleutel) $("claude-paneel").open = false;
@@ -241,7 +252,7 @@ async function draai(vanaf = 0, { vervolg = false } = {}) {
   const eerder = uitkomsten.slice(0, vanaf);
   bezig = true; uitkomsten = eerder; eindpakket = null; gekozenKraal = null; tekenKetting(); tekenLogboek(); $("go").disabled = true; $("progress").classList.add("on");
   const t0 = performance.now(); performance.clearResourceTimings();
-  if (vervolg) spoorVervolg(`verder na herladen, bij stap ${vanaf + 1}`);
+  if (vervolg) spoorVervolg(`verder ${reden === "tabblad" ? "in een nieuw tabblad" : "na herladen"}, bij stap ${vanaf + 1}`);
   else await spoorStart(`${VERSION} · ketting ${ketting.join(",")}${vanaf ? ` vanaf stap ${vanaf + 1}` : ""} · zuinig ${geheugen.zuinig ? "aan" : "uit"} · invoer ${invoer.file ? `${soort(invoer.file)} ${grootte(invoer.file.size)} ${invoer.file.type}` : "getypte tekst"}`);
   let pakket;
   try {
@@ -262,16 +273,18 @@ async function draai(vanaf = 0, { vervolg = false } = {}) {
   spoor(`invoer gelezen${pakket.audio ? `: ${fmt(pakket.audio.duration)} audio op ${pakket.audio.sampleRate} Hz` : ""}`);
   for (let i = vanaf; i < ketting.length; i++) {
     const m = byId[ketting[i]]; const tb = performance.now();
-    // iPhone en iPad: één model per pagina. Op een iPhone (iOS 26.5) viel de pagina weg bij het laden van elk
-    // tweede model, ook van een klein model na een klein model (Maskeren, 12 MB, na Sprekers). Heeft deze pagina al
-    // een model geladen en heeft deze kraal er ook een nodig, dan bewaren we de tussenstand en herladen we de
-    // pagina; de ketting gaat daarna vanzelf verder bij deze stap. Alleen herladen geeft het geheugen zeker terug.
+    // iPhone en iPad: één model per tabblad. Op een iPhone (iOS 26.5) viel de pagina weg bij het laden van elk
+    // tweede model, ook van een klein model na een klein model. De pagina herladen hielp niet: de browser houdt
+    // hetzelfde proces aan en het geheugen blijft staan (de pagina viel zelfs weg terwijl hij stil stond te
+    // wachten). Een nieuw tabblad krijgt wél een eigen proces. Een browser opent alleen na een tik een tabblad,
+    // dus bewaren we de tussenstand en tonen we een knop; het nieuwe tabblad gaat verder bij deze stap.
     if (geheugen.zuinig && geheugen.apple && !LICHT.has(m.id) && !m.komt) {
       if (vuil) {
-        spoor(`geheugen vrijmaken: pagina herladen, daarna verder bij stap ${i + 1} (${m.id})`);
-        setStatus("Geheugen vrijmaken, de pagina herlaadt even…");
-        try { await bewaarVervolg({ ketting, invoer, uitkomsten, vanaf: i }); location.reload(); await new Promise(() => {}); }
-        catch (e) { spoor(`tussenstand bewaren mislukt: ${e.message ?? e}; verder zonder herladen`); }
+        try {
+          await bewaarVervolg({ ketting, invoer, uitkomsten, vanaf: i, reden: "tabblad" });
+          spoorPauze(`wacht op een tik: verder in een nieuw tabblad bij stap ${i + 1} (${m.id})`);
+          toonVerder(i, m); return;
+        } catch (e) { spoor(`tussenstand bewaren mislukt: ${e.message ?? e}; verder in dit tabblad`); }
       }
       vuil = true;
     }
@@ -514,11 +527,7 @@ $("wis").onclick = () => { ketting = []; uitkomsten = []; eindpakket = null; tek
     uitkomsten = verder.uitkomsten.map((u) => u && { ...u }); eindpakket = null; zetModus(); tekenKetting(); tekenLogboek();
     // Herladen geeft het geheugen van het vorige model op een iPhone niet meteen terug: de ene keer laadde het
     // volgende model daarna wel, de andere keer viel de pagina weg. Daarom eerst even wachten.
-    if (verder.reden !== "versie" && geheugen.apple) {
-      $("go").disabled = true; spoor(`wachten ${WACHT_NA_HERLADEN} s zodat de browser het geheugen kan opruimen`);
-      for (let s = WACHT_NA_HERLADEN; s > 0; s--) { setStatus(`Geheugen vrijmaken, nog ${s} s… Daarna gaat de ketting vanzelf verder.`); await new Promise((r) => setTimeout(r, 1000)); }
-    }
-    draai(verder.vanaf, { vervolg: true });
+    draai(verder.vanaf, { vervolg: true, reden: verder.reden });
     return;
   }
   const v = vorigeKeer();

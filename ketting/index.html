@@ -49,7 +49,7 @@
         <div id="opname-rij" class="row"><label class="small" title="Dichtbij: afgesteld op één spreker vlak bij de microfoon. Zaal of tafel: zonder ruisonderdrukking en automatisch volume, zodat ook sprekers verderop hoorbaar blijven; er komt wel meer zaalgeluid mee.">Opnemen van <select id="opname-soort"><option value="dichtbij">dichtbij (één spreker)</option><option value="zaal">zaal of vergadertafel</option></select></label></div>
         <textarea id="tekst" placeholder="…of typ of plak hier tekst"></textarea>
         <input id="vraag" type="text" placeholder="Vraag aan het document, bijvoorbeeld: wanneer moet de aanvraag binnen zijn?" style="display:none">
-        <p id="apple-noot" class="let-op" style="display:none">Op een iPhone of iPad loopt een ketting met meer dan één model nog vaak vast: de browser krijgt daar te weinig geheugen en sluit de pagina. Tussen de stappen herlaadt de pagina en wacht hij even om geheugen vrij te maken; dat helpt niet altijd. Op Android en op een laptop werkt dezelfde ketting wel.</p>
+        <p id="apple-noot" class="let-op" style="display:none">Op een iPhone of iPad heeft de browser weinig geheugen. Daarom loopt elke stap met een model in een eigen tabblad: na zo'n stap verschijnt een knop <i>Ga verder</i>, en met één tik gaat de ketting door in een nieuw tabblad. Het oude tabblad kun je daarna sluiten.</p>
         <div id="knip-rij" class="row" style="display:none"><label class="small" title="Hoe zeker het model moet zijn voordat het een stopwoordje wegknipt.">Stopwoordjes knippen <select id="knip-stand"></select></label></div>
         <div id="stem-rij" class="row" style="display:none"><label class="small">Voorleesstem <select id="stem"></select></label></div>
         <details id="claude-paneel" style="display:none">
@@ -78,6 +78,7 @@
         <img id="preview-beeld" alt="" style="display:none">
         <div class="row">
           <button id="go" class="primary" disabled>Rijg en ga</button>
+          <div id="verder-rij" style="display:none"><a id="verder" class="knop" target="_blank" rel="noopener" href="#"></a></div>
           <label class="small alleen-studio">Taalmodel <select id="llm"><option value="klein">klein</option><option value="normaal">normaal</option></select></label>
           <span id="llm-info" class="small alleen-studio"></span>
           <label class="small alleen-studio" title="Geeft elk model vrij zodra zijn stap klaar is. Staat vanzelf aan op iPhone en iPad, waar een tabblad weinig geheugen krijgt. Kost wat tijd als een model twee keer nodig is."><input type="checkbox" id="zuinig"> Zuinig met geheugen</label>

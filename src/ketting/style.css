@@ -166,3 +166,6 @@ body.gebruik #opname-rij label { display: flex; flex-direction: column; gap: .2r
 body.gebruik #knip-rij label { display: flex; flex-direction: column; gap: .2rem; } body.gebruik #knip-stand { width: 100%; font: inherit; padding: .5rem; }
 /* lange waarden in de tabellen van een kaart breken af in plaats van buiten beeld te lopen */
 #uitkomst table, #eindresultaat table { max-width: 100%; } #uitkomst td, #eindresultaat td { overflow-wrap: anywhere; } #uitkomst td:first-child, #eindresultaat td:first-child { white-space: nowrap; }
+
+/* iPhone: knop om de volgende stap in een nieuw tabblad te laten lopen */
+#verder-rij { flex-basis: 100%; } a.knop { display: block; text-align: center; padding: .9rem 1rem; border-radius: .7rem; background: var(--accent); color: #fff; text-decoration: none; font-weight: 700; font-size: 1.08rem; }
