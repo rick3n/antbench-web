@@ -8,6 +8,7 @@ import { fileToText } from "../engine.js";
 import { fmt, grootte, geheugen, zetZuinig, geefAllesVrij, imageToPixels } from "../engine.js";
 // Kralen zonder model: die kosten geen geheugen en hoeven op een iPhone geen schone pagina.
 const LICHT = new Set(["actiepunten", "claude", "terugzetten"]);
+const WACHT_NA_HERLADEN = 8;   // seconden, alleen op iPhone en iPad
 let vuil = false;   // heeft deze pagina al een model geladen? (begint na elke herlaadbeurt weer op nee)
 
 import { bewaar } from "../export.js";
@@ -78,6 +79,7 @@ function tekenKetting() {
   $("vraag").style.display = ketting.some((id) => byId[id].vraag) ? "" : "none";
   $("stem-rij").style.display = ketting.some((id) => byId[id].stem) ? "" : "none";
   $("knip-rij").style.display = ketting.some((id) => byId[id].knip) ? "" : "none";
+  $("apple-noot").style.display = geheugen.apple && ketting.filter((id) => !LICHT.has(id) && !byId[id].komt).length > 1 ? "" : "none";
   // gebruikersscherm: alleen de invoer tonen die deze ketting nodig heeft
   const nodig = gebruik ? byId[ketting[0]]?.in.find((x) => ["audio", "beeld", "tekst"].includes(x)) : null;
   $("rec").style.display = $("opname-rij").style.display = !nodig || nodig === "audio" ? "" : "none"; $("cam").style.display = !nodig || nodig === "beeld" ? "" : "none"; $("tekst").style.display = !nodig || nodig === "tekst" ? "" : "none";
@@ -296,7 +298,7 @@ async function draai(vanaf = 0, { vervolg = false } = {}) {
       if (verouderd(e)) {
         let net = false; try { net = Date.now() - Number(sessionStorage.getItem("antbench.herstel") || 0) < 60_000; } catch {}
         if (!net) {
-          try { sessionStorage.setItem("antbench.herstel", String(Date.now())); spoor("nieuwe versie op de server: pagina herladen en verder bij deze stap"); setStatus("Er staat een nieuwe versie klaar; de pagina herlaadt en gaat verder…"); await bewaarVervolg({ ketting, invoer, uitkomsten: uitkomsten.slice(0, i), vanaf: i }); location.reload(); await new Promise(() => {}); }
+          try { sessionStorage.setItem("antbench.herstel", String(Date.now())); spoor("nieuwe versie op de server: pagina herladen en verder bij deze stap"); setStatus("Er staat een nieuwe versie klaar; de pagina herlaadt en gaat verder…"); await bewaarVervolg({ ketting, invoer, uitkomsten: uitkomsten.slice(0, i), vanaf: i, reden: "versie" }); location.reload(); await new Promise(() => {}); }
           catch (x) { spoor(`herstellen mislukt: ${x.message ?? x}`); }
         }
         uitkomsten[i] = { id: m.id, ok: false, samenvatting: "mislukt: de pagina is van een vorige versie", pakket: {} }; tekenKetting(); tekenLogboek(i); setStatus(VEROUDERD_TEKST); break;
@@ -510,6 +512,12 @@ $("wis").onclick = () => { ketting = []; uitkomsten = []; eindpakket = null; tek
     $("tekst").value = invoer.tekst; $("vraag").value = invoer.vraag;
     if (invoer.file) $("invoer-info").textContent = `${invoer.file.name} · ${grootte(invoer.file.size)} · ${SLEUTELS[soort(invoer.file)]}`;
     uitkomsten = verder.uitkomsten.map((u) => u && { ...u }); eindpakket = null; zetModus(); tekenKetting(); tekenLogboek();
+    // Herladen geeft het geheugen van het vorige model op een iPhone niet meteen terug: de ene keer laadde het
+    // volgende model daarna wel, de andere keer viel de pagina weg. Daarom eerst even wachten.
+    if (verder.reden !== "versie" && geheugen.apple) {
+      $("go").disabled = true; spoor(`wachten ${WACHT_NA_HERLADEN} s zodat de browser het geheugen kan opruimen`);
+      for (let s = WACHT_NA_HERLADEN; s > 0; s--) { setStatus(`Geheugen vrijmaken, nog ${s} s… Daarna gaat de ketting vanzelf verder.`); await new Promise((r) => setTimeout(r, 1000)); }
+    }
     draai(verder.vanaf, { vervolg: true });
     return;
   }

@@ -51,9 +51,9 @@ export const wisAlles = () => tx("readwrite", (st) => st.clear());
 export async function lijst() { return ((await tx("readonly", (st) => st.getAll())) ?? []).filter((s) => s.id !== VERVOLG).sort((a, b) => b.datum - a.datum); }
 // --- Vervolg: de tussenstand van een lopende ketting, voor als de pagina herlaadt om geheugen vrij te maken ---
 const VERVOLG = "__vervolg";
-export async function bewaarVervolg({ ketting, invoer, uitkomsten, vanaf }) {
+export async function bewaarVervolg({ ketting, invoer, uitkomsten, vanaf, reden = "geheugen" }) {
   const f = invoer.file;
-  await tx("readwrite", (st) => st.put({ id: VERVOLG, datum: Date.now(), ketting: [...ketting], vanaf,
+  await tx("readwrite", (st) => st.put({ id: VERVOLG, datum: Date.now(), ketting: [...ketting], vanaf, reden,
     invoer: { tekst: invoer.tekst ?? "", vraag: invoer.vraag ?? "", naam: f?.name ?? null, type: f?.type ?? null, file: f ?? null },
     uitkomsten: uitkomsten.map((u) => (u ? afslanken({ id: u.id, ok: u.ok, samenvatting: u.samenvatting, pakket: u.pakket, ms: u.ms, kreeg: u.kreeg, door: u.door, nieuw: u.nieuw, labels: u.labels }) : null)) }));
 }
