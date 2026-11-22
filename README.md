@@ -364,6 +364,7 @@ een gebruiker direct te zien welke versie die draaide.
 | 0.16.5 | *Verslag door Claude*: het transcript gaat met tijden naar Claude en het verslag sluit af met *Te controleren*; strengere opdracht tegen het gladstrijken van verkeerd verstane passages; nieuwe velden *Woordenlijst* (gaat mee naar Claude) en *Namenlijst* (blijft op het toestel: die namen worden altijd gemaskeerd, ook verhaspeld, en Claude krijgt alleen de rol); het kettingverslag zegt niet meer *alles op dit toestel* als er een kraal uit *Buiten het toestel* in zit, maar noemt die zelf gekozen kraal |
 | 0.16.6 | iPhone en iPad: na het herladen tussen twee modellen wacht de ketting acht seconden voordat het volgende model laadt, en de pagina meldt vooraf dat ketens met meer dan één model daar nog vaak vastlopen |
 | 0.17.0 | iPhone en iPad: elke stap met een model loopt in een eigen tabblad. Na zo'n stap verschijnt een knop *Ga verder*; met één tik gaat de ketting door in een nieuw tabblad, dat een eigen proces en dus eigen geheugen krijgt. Herladen en wachten (0.16.1 t/m 0.16.6) zijn vervallen: de pagina viel daar zelfs weg terwijl hij stil stond te wachten |
+| 0.17.1 | iPhone: het nieuwe tabblad kon de opname niet lezen (*The object can not be found here*). Bestanden gaan nu als ruwe bytes de browseropslag in in plaats van als bestand-verwijzing; dat geldt ook voor het archief |
 
 Verandert `package-lock.json`, zet dan `npmDepsHash` in `default.nix` opnieuw
 (`nix run nixpkgs#prefetch-npm-deps -- package-lock.json`).

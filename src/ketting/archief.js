@@ -27,6 +27,23 @@ export function afslanken(v, diepte = 0) {
   for (const [k, w] of Object.entries(v)) { if (ZWAAR.has(k) || /Url$/.test(k)) continue; const a = afslanken(w, diepte + 1); if (a !== undefined) uit[k] = a; }
   return uit;
 }
+/**
+ * Bestanden gaan als ruwe bytes de database in, niet als Blob. Op iPhone en iPad (WebKit) is een Blob uit IndexedDB
+ * niet altijd meer te lezen, zeker niet vanuit een ander tabblad dan dat hem bewaarde: "The object can not be found
+ * here". Bytes hebben dat probleem niet. Oude records met een echte Blob blijven leesbaar.
+ */
+async function inpakken(v) {
+  if (v instanceof Blob) return { __bytes: await v.arrayBuffer(), type: v.type, naam: v instanceof File ? v.name : null };
+  if (Array.isArray(v)) return Promise.all(v.map(inpakken));
+  if (v && typeof v === "object" && !(v instanceof ArrayBuffer) && !ArrayBuffer.isView(v)) { const o = {}; for (const [k, w] of Object.entries(v)) o[k] = await inpakken(w); return o; }
+  return v;
+}
+function uitpakken(v) {
+  if (v == null || typeof v !== "object" || v instanceof Blob || v instanceof ArrayBuffer || ArrayBuffer.isView(v)) return v;
+  if (v.__bytes instanceof ArrayBuffer) return v.naam ? new File([v.__bytes], v.naam, { type: v.type || "" }) : new Blob([v.__bytes], { type: v.type || "" });
+  if (Array.isArray(v)) return v.map(uitpakken);
+  const o = {}; for (const [k, w] of Object.entries(v)) o[k] = uitpakken(w); return o;
+}
 const omvang = (v) => { if (v == null) return 0; if (v instanceof Blob) return v.size; if (typeof v === "string") return v.length * 2; if (typeof v !== "object") return 8; return (Array.isArray(v) ? v : Object.values(v)).reduce((s, x) => s + omvang(x), 0); };
 
 /** Bewaart één sessie; geeft het bewaarde record terug. */
@@ -40,11 +57,12 @@ export async function bewaarSessie({ titel, ketting, invoer, uitkomsten, eindpak
     eindpakket: afslanken(eindpakket ?? {}), claude: claude ?? null,
   };
   s.bytes = omvang(s);
-  await tx("readwrite", (st) => st.put(s));
+  const klaar = await inpakken(s);
+  await tx("readwrite", (st) => st.put(klaar));
   navigator.storage?.persist?.().catch(() => {});
   return s;
 }
-export const haalSessie = (id) => tx("readonly", (st) => st.get(id));
+export const haalSessie = async (id) => uitpakken(await tx("readonly", (st) => st.get(id)));
 export const wisSessie = (id) => tx("readwrite", (st) => st.delete(id));
 export const wisAlles = () => tx("readwrite", (st) => st.clear());
 /** Alle sessies, nieuwste eerst. */
@@ -53,15 +71,16 @@ export async function lijst() { return ((await tx("readonly", (st) => st.getAll(
 const VERVOLG = "__vervolg";
 export async function bewaarVervolg({ ketting, invoer, uitkomsten, vanaf, reden = "geheugen" }) {
   const f = invoer.file;
-  await tx("readwrite", (st) => st.put({ id: VERVOLG, datum: Date.now(), ketting: [...ketting], vanaf, reden,
+  const klaar = await inpakken({ id: VERVOLG, datum: Date.now(), ketting: [...ketting], vanaf, reden,
     invoer: { tekst: invoer.tekst ?? "", vraag: invoer.vraag ?? "", naam: f?.name ?? null, type: f?.type ?? null, file: f ?? null },
-    uitkomsten: uitkomsten.map((u) => (u ? afslanken({ id: u.id, ok: u.ok, samenvatting: u.samenvatting, pakket: u.pakket, ms: u.ms, kreeg: u.kreeg, door: u.door, nieuw: u.nieuw, labels: u.labels }) : null)) }));
+    uitkomsten: uitkomsten.map((u) => (u ? afslanken({ id: u.id, ok: u.ok, samenvatting: u.samenvatting, pakket: u.pakket, ms: u.ms, kreeg: u.kreeg, door: u.door, nieuw: u.nieuw, labels: u.labels }) : null)) });
+  await tx("readwrite", (st) => st.put(klaar));
 }
 /** Haalt de tussenstand op en wist hem meteen, zodat een tweede herlaadbeurt niet opnieuw begint. */
 export async function haalVervolg() {
   const v = await tx("readonly", (st) => st.get(VERVOLG)).catch(() => null); if (!v) return null;
   await wisSessie(VERVOLG).catch(() => {});
-  return Date.now() - v.datum < 10 * 60_000 ? v : null;
+  return Date.now() - v.datum < 10 * 60_000 ? uitpakken(v) : null;
 }
 /** Ruimt op wat ouder is dan de bewaartermijn; 0 dagen = niet opruimen. */
 export async function ruimOp() {
@@ -104,6 +123,7 @@ export async function uitZip(bestand) {
   if (!Array.isArray(s.ketting) || !Array.isArray(s.uitkomsten)) throw new Error("de sessie in deze ZIP is onvolledig");
   if (s.invoer?.file && s.invoer.naam) s.invoer.file = new File([s.invoer.file], s.invoer.naam, { type: s.invoer.type ?? "" });
   s.id = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`; s.geimporteerd = Date.now();
-  await tx("readwrite", (st) => st.put(s));
+  const klaar = await inpakken(s);
+  await tx("readwrite", (st) => st.put(klaar));
   return s;
 }
