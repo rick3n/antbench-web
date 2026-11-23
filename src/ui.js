@@ -1,7 +1,14 @@
 // Gedeelde UI-staat: status, voortgang, resultaatvak, kopiëren/delen/downloaden.
 
 import { spoor } from "./spoor.js";
-export const BASE = import.meta.env.BASE_URL;   // "/antbench/"
+export const BASE = import.meta.env.BASE_URL;
+
+// Geluidsbestanden kiezen. Op iPhone en iPad maakt de bestandskiezer een m4a grijs als het invoerveld alleen
+// "audio/*" toestaat (gemeld vanaf een iPhone, iOS 26.5). Daar halen we de beperking weg: de kiezer laat dan alles
+// kiezen en de pagina kijkt zelf of het bestand bruikbaar is. Elders noemen we de gangbare soorten bij naam.
+const APPLE = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+const GELUID = ".m4a,.mp3,.wav,.aac,.caf,.flac,.ogg,.opus,.mp4,.mov,.webm,.3gp,audio/x-m4a,audio/mp4,audio/m4a";
+for (const el of document.querySelectorAll('input[type="file"][accept*="audio/"]')) { if (APPLE) el.removeAttribute("accept"); else el.accept += `,${GELUID}`; }   // "/antbench/"
 export const VERSION = `AntBench v${__APP_VERSION__}`;
 export const $ = (id) => document.getElementById(id);
 
